@@ -4,14 +4,14 @@ document.addEventListener('DOMContentLoaded', function () {
     M.FormSelect.init(document.querySelectorAll('select'))
     M.Autocomplete.init(document.querySelectorAll('.autocomplete'), {
         data: {
-            '101 (Refrigerator)': null,
-            '201 (Washer)': null,
-            '202 (Dryer)': null,
-            '204 (Dishwasher)': null,
-            '223 (WashTower)': null,
-            '301 (Gas Range)': null,
-            '302 (Microwave)': null,
-            '401 (Air Conditioner)': null,
+            [`101 (${rethinkI18n.t('device.refrigerator', 'Refrigerator')})`]: null,
+            [`201 (${rethinkI18n.t('device.washer', 'Washer')})`]: null,
+            [`202 (${rethinkI18n.t('device.dryer', 'Dryer')})`]: null,
+            [`204 (${rethinkI18n.t('device.dishwasher', 'Dishwasher')})`]: null,
+            [`223 (${rethinkI18n.t('device.washtower', 'WashTower')})`]: null,
+            [`301 (${rethinkI18n.t('device.gas_range', 'Gas Range')})`]: null,
+            [`302 (${rethinkI18n.t('device.microwave', 'Microwave')})`]: null,
+            [`401 (${rethinkI18n.t('device.air_conditioner', 'Air Conditioner')})`]: null,
         },
     })
 })
@@ -26,7 +26,7 @@ let bridge_status = false
 get('status_rethink').innerHTML = STATUS_UNKNOWN
 get('status_mqtt').innerHTML = STATUS_UNKNOWN
 get('status_bridge').innerHTML = STATUS_UNKNOWN
-get('status_bridge_text').innerText = 'Unknown'
+get('status_bridge_text').innerText = rethinkI18n.t('status.unknown', 'Unknown')
 
 const devices = {}
 
@@ -63,7 +63,7 @@ class DeviceEntry {
         td = document.createElement('td')
         let model = this.remoteState.model
         if (!this.remoteState.mapped) {
-            model += ` <i class="material-icons tooltipped tiny" data-position="bottom" data-tooltip="This device is not supported by rethink. It will not be mapped to HomeAssistant">warning</i>`
+            model += ` <i class="material-icons tooltipped tiny" data-position="bottom" data-tooltip="${rethinkI18n.t('devices.unsupported', 'This device is not supported by rethink. It will not be mapped to Home Assistant')}">warning</i>`
         }
         td.innerHTML = model
         children.push(td)
@@ -77,7 +77,7 @@ class DeviceEntry {
 
         td.innerHTML = `
             <div class="switch">
-                <label>Off <input type="checkbox"> <span class="lever"></span>On</label>
+                <label>${rethinkI18n.t('common.off', 'Off')} <input type="checkbox"> <span class="lever"></span>${rethinkI18n.t('common.on', 'On')}</label>
             </div>
             <div class="hide preloader-wrapper verysmall active">
                 <div class="spinner-layer spinner-green-only">
@@ -231,13 +231,13 @@ function connect() {
                     document.getElementById('btn_thinq_logout').classList.remove('hide')
 
                     get('status_bridge').innerHTML = STATUS_OK
-                    get('status_bridge_text').innerText = 'Ok'
+                    get('status_bridge_text').innerText = rethinkI18n.t('status.ok', 'Ok')
                 } else {
                     document.getElementById('btn_thinq_login').classList.remove('hide')
                     document.getElementById('btn_thinq_logout').classList.add('hide')
 
                     get('status_bridge').innerHTML = STATUS_ERROR
-                    get('status_bridge_text').innerText = 'Not configured'
+                    get('status_bridge_text').innerText = rethinkI18n.t('status.not_configured', 'Not configured')
                 }
 
                 for (const id in devices) devices[id].refreshUI()
@@ -297,11 +297,14 @@ async function fetchWrapper(path, body, options) {
     options.body = JSON.stringify(body)
     try {
         const response = await fetch(`${baseUrl}${path}`, options)
-        if (response.status >= 300) M.toast({ html: `HTTP error ${response.status}: ${await response.text()}` })
+        if (response.status >= 300)
+            M.toast({
+                html: `${rethinkI18n.t('error.http', 'HTTP error')} ${response.status}: ${await response.text()}`,
+            })
 
         return response
     } catch (err) {
-        M.toast({ html: `FETCH error: ${err}` })
+        M.toast({ html: `${rethinkI18n.t('error.fetch', 'FETCH error')}: ${err}` })
     }
 }
 connect()

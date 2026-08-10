@@ -6,6 +6,7 @@
 |-- bridge/                  # Optional LG cloud bridge
 |-- cloud/                   # ThinQ endpoints and MQTT discovery
 |-- html/                    # Management interface assets
+|   `-- i18n.js              # Browser-language management UI translations
 |-- management/              # Management web server
 |-- rethink-addon/           # Home Assistant add-on wrapper
 |   |-- translations/        # Add-on UI translations

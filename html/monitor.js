@@ -4,7 +4,7 @@ let ws
 let reconnectTimer
 
 get('device_id').innerText = new URLSearchParams(window.location.search).get('id')
-get('device_status').innerText = 'Waiting for rethink connection...'
+get('device_status').innerText = rethinkI18n.t('status.waiting', 'Waiting for rethink connection...')
 
 // The socket lives at /device, a sibling of this page. Appending to the page's own path instead
 // asks for /monitordevice, which nothing serves.
@@ -31,12 +31,12 @@ function connect() {
     ws.onclose = () => {
         reconnectTimer = setTimeout(connect, retryDelay)
         retryDelay = 5000
-        get('device_status').innerText = 'Waiting for rethink connection...'
+        get('device_status').innerText = rethinkI18n.t('status.waiting', 'Waiting for rethink connection...')
     }
 
     ws.onopen = () => {
         retryDelay = 250
-        get('device_status').innerText = 'offline'
+        get('device_status').innerText = rethinkI18n.t('status.offline', 'offline')
     }
 
     ws.onmessage = (ev) => {
@@ -59,7 +59,7 @@ function connect() {
             }
 
             if (json.status) {
-                get('device_status').innerText = json.status
+                get('device_status').innerText = rethinkI18n.t(`status.${json.status}`, json.status)
                 if (json.status === 'online') {
                     get('btn_send1').disabled = false
                     get('btn_send1').onclick = () => {

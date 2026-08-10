@@ -2,7 +2,7 @@
 
 LG ThinQ 가전을 LG 클라우드 대신 로컬 Rethink 서버에 연결하고, MQTT Discovery를 통해 Home Assistant 기기로 등록하는 애드온입니다.
 
-> 현재 애드온 패키지는 `dev` 브랜치에서 개발·검증 중입니다.
+> 애드온 설치 빌드는 공개된 `master` 브랜치 소스를 사용합니다.
 
 ## Home Assistant 애드온 주요 기능
 

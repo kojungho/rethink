@@ -1,8 +1,8 @@
-# Build the public dev branch directly so local add-on installation does not depend on GHCR visibility.
+# Build the public master branch directly so add-on installation uses released source only.
 # Related files: config.yaml, run.sh, ../Dockerfile, ../package.json.
 FROM alpine:3.20 AS build
 
-ARG RETHINK_REF=dev
+ARG RETHINK_REF=master
 
 WORKDIR /src
 

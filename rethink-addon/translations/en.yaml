@@ -1,0 +1,29 @@
+configuration:
+    hostname:
+        name: Rethink hostname
+        description: Local DNS name that LG appliances use to reach Rethink.
+    mqtt_auto_discovery:
+        name: Automatically discover MQTT
+        description: Prefer MQTT connection information provided by Home Assistant Supervisor and fall back to the manual options when unavailable.
+    mqtt_server:
+        name: Manual MQTT server
+        description: Fallback MQTT URL including scheme and port.
+    mqtt_username:
+        name: Manual MQTT user ID
+        description: Fallback user ID used to connect to the MQTT broker.
+    mqtt_password:
+        name: Manual MQTT password
+        description: Fallback password used to connect to the MQTT broker.
+        discovery_prefix:
+            name: Discovery prefix
+            description: Home Assistant MQTT discovery topic prefix.
+        rethink_prefix:
+            name: Rethink prefix
+            description: MQTT topic prefix used by Rethink.
+network:
+    443/tcp: ThinQ 2 HTTPS endpoint
+    8883/tcp: ThinQ 2 secure MQTT endpoint
+    1884/tcp: Local unencrypted MQTT endpoint
+    46030/tcp: ThinQ 1 HTTPS endpoint
+    47878/tcp: ThinQ 1 device endpoint
+    44401/tcp: Management web interface

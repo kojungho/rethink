@@ -1,0 +1,3 @@
+{"date":"2026-08-10","area":"network","caution":"LG appliances must resolve the configured rethink hostname to the Home Assistant host and reach the required ThinQ ports."}
+{"date":"2026-08-10","area":"security","caution":"Never log or commit the MQTT password; generate the runtime configuration with restrictive file permissions."}
+{"date":"2026-08-10","area":"mqtt","caution":"Keep manual MQTT options available because Supervisor service discovery is optional and can be unavailable when no MQTT service is registered."}

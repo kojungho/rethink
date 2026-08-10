@@ -1,0 +1,29 @@
+configuration:
+    hostname:
+        name: Rethink 호스트 이름
+        description: LG 가전이 Rethink에 접속할 때 사용하는 로컬 DNS 이름입니다.
+    mqtt_auto_discovery:
+        name: MQTT 자동 검색
+        description: Home Assistant Supervisor가 제공하는 MQTT 접속 정보를 우선 사용하고, 사용할 수 없으면 수동 옵션을 사용합니다.
+    mqtt_server:
+        name: 수동 MQTT 서버
+        description: 자동 검색 실패 시 사용할 프로토콜과 포트를 포함한 MQTT 주소입니다.
+    mqtt_username:
+        name: 수동 MQTT 사용자 ID
+        description: 자동 검색 실패 시 MQTT 브로커 접속에 사용할 사용자 ID입니다.
+    mqtt_password:
+        name: 수동 MQTT 비밀번호
+        description: 자동 검색 실패 시 MQTT 브로커 접속에 사용할 비밀번호입니다.
+        discovery_prefix:
+            name: 검색 접두사
+            description: Home Assistant MQTT 검색 토픽의 접두사입니다.
+        rethink_prefix:
+            name: Rethink 접두사
+            description: Rethink가 사용할 MQTT 토픽 접두사입니다.
+network:
+    443/tcp: ThinQ 2 HTTPS 엔드포인트
+    8883/tcp: ThinQ 2 보안 MQTT 엔드포인트
+    1884/tcp: 로컬 비암호화 MQTT 엔드포인트
+    46030/tcp: ThinQ 1 HTTPS 엔드포인트
+    47878/tcp: ThinQ 1 기기 엔드포인트
+    44401/tcp: 관리 웹 인터페이스

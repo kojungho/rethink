@@ -46,6 +46,12 @@ Most of the findings from the reverse engineering process are available on the [
 
 See the [instructions](https://github.com/anszom/rethink/wiki/Installing-rethink‐cloud).
 
+### Home Assistant add-on
+
+This fork also provides a Home Assistant add-on repository. Add this repository URL to the Home Assistant add-on store, install **Rethink**, and configure the MQTT server URL, user ID, and password in the add-on options.
+
+The LG appliances must resolve the configured Rethink hostname (default: `rethink.lan`) to the Home Assistant host. See [the add-on documentation](rethink-addon/DOCS.md) for the required ports and network setup.
+
 ## Management
 
 A simple web interface is available on a user-defined port (default: 44401). The interface supports:

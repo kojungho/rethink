@@ -1,0 +1,50 @@
+name: Rethink
+version: '0.1.0-dev'
+slug: rethink
+description: Local LG ThinQ cloud replacement with Home Assistant MQTT discovery
+url: https://github.com/plplaaa2/rethink
+startup: services
+boot: auto
+init: false
+stage: experimental
+arch:
+    - amd64
+    - aarch64
+    - armv7
+ingress: true
+ingress_port: 44401
+panel_icon: mdi:cloud-off-outline
+panel_title: Rethink
+services:
+    - mqtt:want
+webui: http://[HOST]:[PORT:44401]
+ports:
+    443/tcp: 443
+    8883/tcp: 8883
+    1884/tcp: 1884
+    46030/tcp: 46030
+    47878/tcp: 47878
+    44401/tcp: 44401
+ports_description:
+    443/tcp: ThinQ 2 HTTPS endpoint
+    8883/tcp: ThinQ 2 secure MQTT endpoint
+    1884/tcp: Local unencrypted MQTT endpoint
+    46030/tcp: ThinQ 1 HTTPS endpoint
+    47878/tcp: ThinQ 1 device endpoint
+    44401/tcp: Management web interface
+options:
+    hostname: rethink.lan
+    mqtt_auto_discovery: true
+    mqtt_server: mqtt://core-mosquitto:1883
+    mqtt_username: ''
+    mqtt_password: ''
+    discovery_prefix: homeassistant
+    rethink_prefix: rethink
+schema:
+    hostname: str
+    mqtt_auto_discovery: bool
+    mqtt_server: str
+    mqtt_username: str
+    mqtt_password: password
+    discovery_prefix: str
+    rethink_prefix: str

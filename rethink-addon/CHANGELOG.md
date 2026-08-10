@@ -20,6 +20,7 @@
 - GHCR 패키지 공개 여부에 의존하지 않고 공개 GitHub `master` 소스를 직접 빌드하도록 애드온 Dockerfile을 변경했습니다.
 - 설치 중 변경될 수 있는 `dev` 대신 릴리스된 `master` 브랜치를 기본 빌드 소스로 고정했습니다.
 - Windows 또는 ZIP 기반 설치에서도 `/run.sh`가 실행되도록 LF 줄바꿈을 강제하고 빌드 중 CRLF를 정규화합니다.
+- 신규 설치의 기본 Rethink 호스트 이름을 `rethink.lan`에서 `rethink.home.arpa`로 변경했습니다.
 
 ### Security
 

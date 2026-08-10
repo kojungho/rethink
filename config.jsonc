@@ -1,5 +1,5 @@
 {
-  "hostname": "rethink.lan", // this can't be an IP address
+  "hostname": "rethink.home.arpa", // this can't be an IP address
 
   "homeassistant": {
     "mqtt_url": "mqtt://localhost:1883",

@@ -33,7 +33,7 @@ ports_description:
     47878/tcp: ThinQ 1 device endpoint
     44401/tcp: Management web interface
 options:
-    hostname: rethink.lan
+    hostname: rethink.home.arpa
     mqtt_auto_discovery: true
     mqtt_server: mqtt://core-mosquitto:1883
     mqtt_username: ''

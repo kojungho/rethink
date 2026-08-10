@@ -18,7 +18,7 @@ LG ThinQ 가전을 LG 클라우드 대신 로컬 Rethink 서버에 연결하고,
 1. Home Assistant 애드온 스토어에 `https://github.com/plplaaa2/rethink` 저장소를 추가합니다.
 2. **Rethink** 애드온을 설치합니다.
 3. MQTT 자동 검색을 사용하거나 수동 MQTT 옵션을 입력합니다.
-4. 공유기 또는 로컬 DNS에서 설정한 호스트 이름(기본값 `rethink.lan`)이 Home Assistant 호스트를 가리키도록 구성합니다.
+4. 공유기 또는 로컬 DNS에서 설정한 호스트 이름(기본값 `rethink.home.arpa`)이 Home Assistant 호스트를 가리키도록 구성합니다.
 5. 애드온을 시작하고 **웹 UI 열기**에서 연결 상태를 확인합니다.
 
 MQTT 자동 검색이 활성화되어 있으면 Supervisor가 제공하는 MQTT 연결 정보를 우선 사용합니다. MQTT 서비스가 없거나 정보를 가져오지 못하면 수동으로 입력한 `mqtt_server`, `mqtt_username`, `mqtt_password` 값으로 전환합니다.

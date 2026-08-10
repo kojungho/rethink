@@ -10,6 +10,6 @@ LG ThinQ 가전을 로컬 Rethink 서버에 연결하고 MQTT Discovery를 통�
 - 인증서와 브리지 상태 영구 보관
 - ThinQ 1 및 ThinQ 2 기기 지원
 
-가전을 연결하기 전에 `rethink.lan` 또는 사용자가 지정한 호스트 이름이 Home Assistant 호스트를 가리키도록 로컬 DNS를 설정해야 합니다.
+가전을 연결하기 전에 `rethink.home.arpa` 또는 사용자가 지정한 호스트 이름이 Home Assistant 호스트를 가리키도록 로컬 DNS를 설정해야 합니다.
 
 설정 옵션과 필수 포트는 [전체 사용 설명서](DOCS.md)를 참고하십시오.

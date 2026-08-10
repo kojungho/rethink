@@ -2,7 +2,7 @@
 
 ## Configuration
 
-- `hostname`: Local DNS name redirected to the Home Assistant host. The default is `rethink.lan`.
+- `hostname`: Local DNS name redirected to the Home Assistant host. The default is `rethink.home.arpa`.
 - `mqtt_auto_discovery`: Use MQTT connection information provided by Home Assistant Supervisor. Enabled by default.
 - `mqtt_server`: Manual fallback MQTT URL, including the scheme and port (for example, `mqtt://192.168.1.10:1883`).
 - `mqtt_username`: Manual fallback MQTT user ID.

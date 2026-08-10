@@ -1,0 +1,5 @@
+# Keep Linux runtime and build files executable across Windows checkouts and ZIP packaging.
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf

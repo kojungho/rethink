@@ -29,7 +29,8 @@ COPY --from=build /src/node_modules ./node_modules
 COPY --from=build /src/dist ./dist
 
 COPY run.sh /run.sh
-RUN chmod 0755 /run.sh
+RUN sed -i 's/\r$//' /run.sh \
+    && chmod 0755 /run.sh
 
 LABEL \
     io.hass.name="Rethink" \

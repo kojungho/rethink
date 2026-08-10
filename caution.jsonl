@@ -3,3 +3,4 @@
 {"date":"2026-08-10","area":"mqtt","caution":"Keep manual MQTT options available because Supervisor service discovery is optional and can be unavailable when no MQTT service is registered."}
 {"date":"2026-08-10","area":"build","caution":"The local add-on build must not depend on an anonymously inaccessible GHCR image; build from the public source branch unless the package is public."}
 {"date":"2026-08-10","area":"build","caution":"Use the released master branch as the default add-on source; never build installations from a mutable development branch."}
+{"date":"2026-08-10","area":"encoding","caution":"Shell entrypoint files must use LF; CRLF makes Linux interpret the shebang as /bin/sh\\r and report the script as missing."}

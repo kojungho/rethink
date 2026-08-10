@@ -1,12 +1,32 @@
-# Home Assistant add-on wrapper for the upstream rethink runtime.
-# Related files: config.yaml, run.sh, ../Dockerfile.
-ARG BUILD_FROM=ghcr.io/plplaaa2/rethink:dev
-FROM ${BUILD_FROM}
+# Build the public dev branch directly so local add-on installation does not depend on GHCR visibility.
+# Related files: config.yaml, run.sh, ../Dockerfile, ../package.json.
+FROM alpine:3.20 AS build
+
+ARG RETHINK_REF=dev
+
+WORKDIR /src
+
+RUN apk add --no-cache nodejs npm
+
+ADD https://github.com/plplaaa2/rethink/archive/refs/heads/${RETHINK_REF}.tar.gz /tmp/rethink.tar.gz
+RUN tar -xzf /tmp/rethink.tar.gz --strip-components=1 -C /src \
+    && npm ci --ignore-scripts \
+    && npm run build \
+    && npm prune --omit=dev
+
+FROM alpine:3.20 AS runtime
 
 ARG BUILD_ARCH
 ARG BUILD_VERSION
 
-RUN apk add --no-cache curl jq
+WORKDIR /app
+
+RUN apk add --no-cache curl jq nodejs openssl \
+    && mkdir -p /app/data
+
+COPY --from=build /src/package.json /src/package-lock.json ./
+COPY --from=build /src/node_modules ./node_modules
+COPY --from=build /src/dist ./dist
 
 COPY run.sh /run.sh
 RUN chmod 0755 /run.sh

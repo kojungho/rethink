@@ -16,6 +16,7 @@
 
 - 관리 화면의 홈 링크가 ingress 하위 경로에서도 동작하도록 수정했습니다.
 - 루트 README를 Home Assistant 애드온 설치와 MQTT 설정 중심으로 개편했습니다.
+- GHCR 패키지 공개 여부에 의존하지 않고 공개 GitHub `dev` 소스를 직접 빌드하도록 애드온 Dockerfile을 변경했습니다.
 
 ### Security
 

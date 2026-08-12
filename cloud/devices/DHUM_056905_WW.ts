@@ -93,6 +93,25 @@ export default class Device extends TLVDevice {
                         max: 480,
                         step: 60,
                     },
+                    child_lock: {
+                        platform: 'binary_sensor',
+                        unique_id: '$deviceid-child_lock',
+                        name: 'Child lock',
+                        icon: 'mdi:lock',
+                        state_topic: '$this/child_lock',
+                        payload_on: 'ON',
+                        payload_off: 'OFF',
+                    },
+                    water_tank_full: {
+                        platform: 'binary_sensor',
+                        device_class: 'problem',
+                        unique_id: '$deviceid-water_tank_full',
+                        name: 'Water tank full',
+                        icon: 'mdi:water-alert',
+                        state_topic: '$this/water_tank_full',
+                        payload_on: 'ON',
+                        payload_off: 'OFF',
+                    },
                     uvnano: switchConfig('uvnano', 'UVnano', 'mdi:air-purifier'),
                     lighting: switchConfig('lighting', 'Lighting', 'mdi:lightbulb'),
                     display_light: switchConfig('display_light', 'Display light', 'mdi:brightness-6'),
@@ -153,6 +172,10 @@ export default class Device extends TLVDevice {
         this.processKeyValue(fields.mode, buf[17])
         this.processKeyValue(fields.targetHumidity, buf[18])
         this.processKeyValue(fields.fanSpeed, buf[19])
+        // Captures show byte 36 changes only with the appliance child lock.
+        this.HA.publishProperty(this.id, 'child_lock', buf[36] ? 'ON' : 'OFF')
+        // The water-tank-full capture reports code 4 here; normal operation is 0.
+        this.HA.publishProperty(this.id, 'water_tank_full', buf[59] === 4 ? 'ON' : 'OFF')
     }
 
     isCapsResponse(tlv: { t: number }[]) {

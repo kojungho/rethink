@@ -1,5 +1,5 @@
 name: Rethink
-version: '0.1.6'
+version: '0.1.7'
 slug: rethink
 description: Local LG ThinQ cloud replacement with Home Assistant MQTT discovery
 url: https://github.com/kojungho/rethink

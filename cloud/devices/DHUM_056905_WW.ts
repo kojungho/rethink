@@ -99,6 +99,43 @@ export default class Device extends TLVDevice {
                 },
             }),
         )
+
+        // DHUM status frames use the A8 67 layout rather than the generic TLV
+        // response layout. Stop the inherited TLV capability polling; it cannot
+        // succeed for this device and only creates needless traffic.
+        if (this.query_caps_timeout != undefined) {
+            clearInterval(this.query_caps_timeout)
+            this.query_caps_timeout = undefined
+        }
+    }
+
+    start() {
+        // The appliance reports status asynchronously; generic TLV polling is
+        // not understood by this protocol variant.
+    }
+
+    processData(buf: Buffer) {
+        if (
+            buf.length >= 33 &&
+            buf[0] === 0x00 &&
+            buf[1] === 0x00 &&
+            buf[2] === 0x04 &&
+            buf[6] === 0xa8 &&
+            buf[7] === 0x67
+        ) {
+            this.processStatus(buf)
+            return
+        }
+        super.processData(buf)
+    }
+
+    private processStatus(buf: Buffer) {
+        // Confirmed against power, mode, fan-speed, and target-humidity packet
+        // captures for DHUM_056905_WW. Byte 32 is the power state (0=off, 1=on).
+        this.processKeyValue(fields.power, buf[32])
+        this.processKeyValue(fields.mode, buf[17])
+        this.processKeyValue(fields.targetHumidity, buf[18])
+        this.processKeyValue(fields.fanSpeed, buf[19])
     }
 
     isCapsResponse(tlv: { t: number }[]) {

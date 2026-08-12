@@ -8,7 +8,7 @@ WORKDIR /src
 
 RUN apk add --no-cache nodejs npm
 
-ADD https://github.com/plplaaa2/rethink/archive/refs/heads/${RETHINK_REF}.tar.gz /tmp/rethink.tar.gz
+ADD https://github.com/kojungho/rethink/archive/refs/heads/${RETHINK_REF}.tar.gz /tmp/rethink.tar.gz
 RUN tar -xzf /tmp/rethink.tar.gz --strip-components=1 -C /src \
     && npm ci --ignore-scripts \
     && npm run build \

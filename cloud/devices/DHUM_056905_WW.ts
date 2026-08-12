@@ -4,6 +4,7 @@ import { Device as Thinq2Device } from '../thinq2/device'
 import { DeviceDiscovery, type Connection } from '../homeassistant'
 import { type Metadata } from '../thinq'
 import { allowExtendedType } from '@/util/casting'
+import * as TLV from '@/util/tlv'
 
 const fields = {
     power: 0x1f7,
@@ -115,6 +116,22 @@ export default class Device extends TLVDevice {
     }
 
     processData(buf: Buffer) {
+        // This model reports its current configuration in an A7 02 packet.
+        // Its payload is the normal compact TLV sequence, but the transport
+        // header differs from the generic TLVDevice response header.
+        if (
+            buf.length >= 13 &&
+            buf[0] === 0x00 &&
+            buf[1] === 0x00 &&
+            buf[2] === 0x04 &&
+            buf[6] === 0xa7 &&
+            buf[7] === 0x02 &&
+            buf[8] === 0x04 &&
+            buf[10] === buf.length - 13
+        ) {
+            this.processTLV(TLV.parse(buf.subarray(11, buf.length - 2)))
+            return
+        }
         if (
             buf.length >= 33 &&
             buf[0] === 0x00 &&

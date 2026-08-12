@@ -147,9 +147,9 @@ export default class Device extends TLVDevice {
     }
 
     private processStatus(buf: Buffer) {
-        // Confirmed against power, mode, fan-speed, and target-humidity packet
-        // captures for DHUM_056905_WW. Byte 32 is the power state (0=off, 1=on).
-        this.processKeyValue(fields.power, buf[32])
+        // Confirmed against mode, fan-speed, and target-humidity packet captures.
+        // This compact frame's power byte is not a boolean state, so power is
+        // only published from the authoritative A7 02 settings packet.
         this.processKeyValue(fields.mode, buf[17])
         this.processKeyValue(fields.targetHumidity, buf[18])
         this.processKeyValue(fields.fanSpeed, buf[19])
@@ -172,8 +172,8 @@ export default class Device extends TLVDevice {
         if (id === fields.offTimer) this.HA.publishProperty(this.id, 'off_timer', value)
         if (id === fields.uVnano) this.HA.publishProperty(this.id, 'uvnano', value ? 'ON' : 'OFF')
         if (id === fields.lighting) this.HA.publishProperty(this.id, 'lighting', value ? 'ON' : 'OFF')
-        if (id === fields.displayLight) this.HA.publishProperty(this.id, 'display_light', value ? 'ON' : 'OFF')
-        if (id === fields.buttonSound) this.HA.publishProperty(this.id, 'button_sound', value ? 'ON' : 'OFF')
+        if (id === fields.displayLight) this.HA.publishProperty(this.id, 'display_light', value ? 'OFF' : 'ON')
+        if (id === fields.buttonSound) this.HA.publishProperty(this.id, 'button_sound', value ? 'OFF' : 'ON')
     }
 
     setProperty(prop: string, value: string) {
@@ -181,8 +181,8 @@ export default class Device extends TLVDevice {
         if (prop === 'power') return bool(fields.power)
         if (prop === 'uvnano') return bool(fields.uVnano)
         if (prop === 'lighting') return bool(fields.lighting)
-        if (prop === 'display_light') return bool(fields.displayLight)
-        if (prop === 'button_sound') return bool(fields.buttonSound)
+        if (prop === 'display_light') return this.write(fields.displayLight, value === 'ON' ? 0 : 1)
+        if (prop === 'button_sound') return this.write(fields.buttonSound, value === 'ON' ? 0 : 1)
         if (prop === 'operating_mode' && modeValues[value] != null) return this.write(fields.mode, modeValues[value])
         if (prop === 'fan_speed' && fanSpeedValues[value] != null) return this.write(fields.fanSpeed, fanSpeedValues[value])
         if (prop === 'target_humidity') return this.write(fields.targetHumidity, Number(value))

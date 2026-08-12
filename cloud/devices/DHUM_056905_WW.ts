@@ -1,0 +1,157 @@
+import HADevice from './base'
+import TLVDevice from './tlv_device'
+import { Device as Thinq2Device } from '../thinq2/device'
+import { DeviceDiscovery, type Connection } from '../homeassistant'
+import { type Metadata } from '../thinq'
+import { allowExtendedType } from '@/util/casting'
+
+const fields = {
+    power: 0x1f7,
+    mode: 0x1f9,
+    fanSpeed: 0x1fa,
+    offTimer: 0x21b,
+    lighting: 0x21e,
+    displayLight: 0x21f,
+    targetHumidity: 0x253,
+    uVnano: 0x2a2,
+    buttonSound: 0x3a0,
+} as const
+
+const modes: Record<number, string> = {
+    0x11: 'SMART_DEHUMIDIFICATION',
+    0x12: 'FAST_DEHUMIDIFICATION',
+    0x13: 'SILENT_DEHUMIDIFICATION',
+    0x14: 'INTENSIVE_DRYING',
+    0x15: 'LAUNDRY_DRYING',
+}
+
+const modeValues = Object.fromEntries(Object.entries(modes).map(([key, value]) => [value, Number(key)]))
+
+const fanSpeeds: Record<number, string> = {
+    2: 'LOW',
+    6: 'HIGH',
+}
+
+const fanSpeedValues = Object.fromEntries(Object.entries(fanSpeeds).map(([key, value]) => [value, Number(key)]))
+
+export default class Device extends TLVDevice {
+    readonly deviceConfig: DeviceDiscovery
+
+    constructor(HA: Connection, thinq: Thinq2Device, meta: Metadata) {
+        super(HA, thinq)
+        this.deviceConfig = HADevice.config(meta, { name: 'LG Dehumidifier' })
+        this.setConfig(
+            allowExtendedType({
+                ...this.deviceConfig,
+                components: {
+                    power: {
+                        platform: 'switch',
+                        unique_id: '$deviceid-power',
+                        name: 'Power',
+                        state_topic: '$this/power',
+                        command_topic: '$this/power/set',
+                        payload_on: 'ON',
+                        payload_off: 'OFF',
+                    },
+                    operating_mode: {
+                        platform: 'select',
+                        unique_id: '$deviceid-operating_mode',
+                        name: 'Operating mode',
+                        state_topic: '$this/operating_mode',
+                        command_topic: '$this/operating_mode/set',
+                        options: Object.values(modes),
+                    },
+                    fan_speed: {
+                        platform: 'select',
+                        unique_id: '$deviceid-fan_speed',
+                        name: 'Fan speed',
+                        state_topic: '$this/fan_speed',
+                        command_topic: '$this/fan_speed/set',
+                        options: Object.values(fanSpeeds),
+                    },
+                    target_humidity: {
+                        platform: 'number',
+                        device_class: 'humidity',
+                        unique_id: '$deviceid-target_humidity',
+                        name: 'Target humidity',
+                        state_topic: '$this/target_humidity',
+                        command_topic: '$this/target_humidity/set',
+                        unit_of_measurement: '%',
+                        min: 30,
+                        max: 70,
+                        step: 5,
+                    },
+                    off_timer: {
+                        platform: 'number',
+                        unique_id: '$deviceid-off_timer',
+                        name: 'Off timer',
+                        state_topic: '$this/off_timer',
+                        command_topic: '$this/off_timer/set',
+                        unit_of_measurement: 'min',
+                        min: 0,
+                        max: 480,
+                        step: 60,
+                    },
+                    uvnano: switchConfig('uvnano', 'UVnano', 'mdi:air-purifier'),
+                    lighting: switchConfig('lighting', 'Lighting', 'mdi:lightbulb'),
+                    display_light: switchConfig('display_light', 'Display light', 'mdi:brightness-6'),
+                    button_sound: switchConfig('button_sound', 'Button sound', 'mdi:volume-high'),
+                },
+            }),
+        )
+    }
+
+    isCapsResponse(tlv: { t: number }[]) {
+        return tlv.some(({ t }) => t === fields.power)
+    }
+
+    isValuesResponse(tlv: { t: number }[]) {
+        return tlv.some(({ t }) => t === fields.power)
+    }
+
+    processKeyValue(id: number, value: number) {
+        this.raw_clip_state[id] = value
+        if (id === fields.power) this.HA.publishProperty(this.id, 'power', value ? 'ON' : 'OFF')
+        if (id === fields.mode && modes[value]) this.HA.publishProperty(this.id, 'operating_mode', modes[value])
+        if (id === fields.fanSpeed && fanSpeeds[value]) this.HA.publishProperty(this.id, 'fan_speed', fanSpeeds[value])
+        if (id === fields.targetHumidity) this.HA.publishProperty(this.id, 'target_humidity', value)
+        if (id === fields.offTimer) this.HA.publishProperty(this.id, 'off_timer', value)
+        if (id === fields.uVnano) this.HA.publishProperty(this.id, 'uvnano', value ? 'ON' : 'OFF')
+        if (id === fields.lighting) this.HA.publishProperty(this.id, 'lighting', value ? 'ON' : 'OFF')
+        if (id === fields.displayLight) this.HA.publishProperty(this.id, 'display_light', value ? 'ON' : 'OFF')
+        if (id === fields.buttonSound) this.HA.publishProperty(this.id, 'button_sound', value ? 'ON' : 'OFF')
+    }
+
+    setProperty(prop: string, value: string) {
+        const bool = (id: number) => this.write(id, value === 'ON' ? 1 : 0)
+        if (prop === 'power') return bool(fields.power)
+        if (prop === 'uvnano') return bool(fields.uVnano)
+        if (prop === 'lighting') return bool(fields.lighting)
+        if (prop === 'display_light') return bool(fields.displayLight)
+        if (prop === 'button_sound') return bool(fields.buttonSound)
+        if (prop === 'operating_mode' && modeValues[value] != null) return this.write(fields.mode, modeValues[value])
+        if (prop === 'fan_speed' && fanSpeedValues[value] != null) return this.write(fields.fanSpeed, fanSpeedValues[value])
+        if (prop === 'target_humidity') return this.write(fields.targetHumidity, Number(value))
+        if (prop === 'off_timer') return this.write(fields.offTimer, Number(value))
+        console.warn(`Attempting to set unsupported dehumidifier property ${prop}`)
+    }
+
+    private write(id: number, value: number) {
+        if (!Number.isInteger(value) || value < 0) return
+        this.raw_clip_state[id] = value
+        this.send([1, 1, 2, 1, 1], [{ t: id, v: value }])
+    }
+}
+
+function switchConfig(id: string, name: string, icon: string) {
+    return {
+        platform: 'switch',
+        unique_id: `$deviceid-${id}`,
+        name,
+        icon,
+        state_topic: `$this/${id}`,
+        command_topic: `$this/${id}/set`,
+        payload_on: 'ON',
+        payload_off: 'OFF',
+    }
+}

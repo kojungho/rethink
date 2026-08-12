@@ -8,6 +8,7 @@ import Dev_2RES1VE61NFA2 from './devices/2RES1VE61NFA2'
 import Dev_2REB1GLVB1__2 from './devices/2REB1GLVB1__2'
 import Dev_2RES1VE600FWC from './devices/2RES1VE600FWC'
 import Dev_2REFO2DJC4K_U from './devices/2REFO2DJC4K_U'
+import DHUM_056905_WW from './devices/DHUM_056905_WW'
 import Y_V8_Y___W_B32QEUK from './devices/Y_V8_Y___W.B32QEUK'
 import F_V8_Y___W_B_2QEUK from './devices/F_V8_Y___W.B_2QEUK'
 import Y_V8_F___W_B_2QEUK from './devices/Y_V8_F___W.B_2QEUK'
@@ -44,6 +45,7 @@ const t2deviceTypes: Record<string, T2Factory> = {
     ['2REB1GLVB1__2']: Dev_2REB1GLVB1__2,
     ['2RES1VE600FWC']: Dev_2RES1VE600FWC,
     ['2REFO2DJC4K_U']: Dev_2REFO2DJC4K_U,
+    DHUM_056905_WW,
     ['Y_V8_Y___W.B32QEUK']: Y_V8_Y___W_B32QEUK,
     ['F_V7_Y___W.B_2QEUK']: F_V8_Y___W_B_2QEUK, // NOTE: we reuse F_V8_Y___W_B_2QEUK as the models appear to be compatible
     ['F_V8_Y___W.B_2QEUK']: F_V8_Y___W_B_2QEUK,

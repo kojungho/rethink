@@ -82,6 +82,15 @@ export default class Device extends TLVDevice {
                         max: 70,
                         step: 5,
                     },
+                    current_humidity: {
+                        platform: 'sensor',
+                        device_class: 'humidity',
+                        state_class: 'measurement',
+                        unique_id: '$deviceid-current_humidity',
+                        name: 'Current humidity',
+                        state_topic: '$this/current_humidity',
+                        unit_of_measurement: '%',
+                    },
                     off_timer: {
                         platform: 'number',
                         unique_id: '$deviceid-off_timer',
@@ -172,6 +181,8 @@ export default class Device extends TLVDevice {
         this.processKeyValue(fields.mode, buf[17])
         this.processKeyValue(fields.targetHumidity, buf[18])
         this.processKeyValue(fields.fanSpeed, buf[19])
+        // Offset 56 is the measured room humidity (for example 0x37 = 55%).
+        this.HA.publishProperty(this.id, 'current_humidity', buf[56])
         // Captures show byte 36 changes only with the appliance child lock.
         this.HA.publishProperty(this.id, 'child_lock', buf[36] ? 'ON' : 'OFF')
         // The water-tank-full capture reports code 4 here; normal operation is 0.

@@ -38,7 +38,6 @@ const fanSpeeds: Record<number, string> = {
 }
 
 const fanSpeedValues = Object.fromEntries(Object.entries(fanSpeeds).map(([key, value]) => [value, Number(key)]))
-const humidifierModes = Object.values(modes).flatMap((mode) => Object.values(fanSpeeds).map((fanSpeed) => `${mode} · ${fanSpeed}`))
 
 export default class Device extends TLVDevice {
     readonly deviceConfig: DeviceDiscovery
@@ -72,11 +71,9 @@ export default class Device extends TLVDevice {
                         action_topic: '$this/humidifier_action',
                         payload_on: 'ON',
                         payload_off: 'OFF',
-                        // The humidifier platform has one mode selector. Pair
-                        // operating mode and fan speed so both can be set here.
-                        modes: humidifierModes,
-                        mode_state_topic: '$this/humidifier_mode',
-                        mode_command_topic: '$this/humidifier_mode/set',
+                        modes: Object.values(modes),
+                        mode_state_topic: '$this/operating_mode',
+                        mode_command_topic: '$this/operating_mode/set',
                         current_humidity_topic: '$this/current_humidity',
                         target_humidity_state_topic: '$this/target_humidity',
                         target_humidity_command_topic: '$this/target_humidity/set',
@@ -278,13 +275,6 @@ export default class Device extends TLVDevice {
         }
         if (id === fields.mode && modes[value]) this.HA.publishProperty(this.id, 'operating_mode', modes[value])
         if (id === fields.fanSpeed && fanSpeeds[value]) this.HA.publishProperty(this.id, 'fan_speed', fanSpeeds[value])
-        if ((id === fields.mode || id === fields.fanSpeed) && modes[this.raw_clip_state[fields.mode]] && fanSpeeds[this.raw_clip_state[fields.fanSpeed]]) {
-            this.HA.publishProperty(
-                this.id,
-                'humidifier_mode',
-                `${modes[this.raw_clip_state[fields.mode]]} · ${fanSpeeds[this.raw_clip_state[fields.fanSpeed]]}`,
-            )
-        }
         if (id === fields.targetHumidity) this.HA.publishProperty(this.id, 'target_humidity', value)
         if (id === fields.offTimer) this.HA.publishProperty(this.id, 'off_timer', value)
         if (id === fields.humiditySensorMode)
@@ -307,13 +297,6 @@ export default class Device extends TLVDevice {
         if (prop === 'target_humidity') return this.write(fields.targetHumidity, Number(value))
         if (prop === 'off_timer') return this.write(fields.offTimer, Number(value))
         if (prop === 'humidity_sensor_mode') return this.writeHumiditySensorMode(value === '항상' ? 1 : 0)
-        if (prop === 'humidifier_mode') {
-            const [mode, fanSpeed] = value.split(' · ')
-            if (modeValues[mode] == null || fanSpeedValues[fanSpeed] == null) return
-            this.write(fields.mode, modeValues[mode])
-            this.write(fields.fanSpeed, fanSpeedValues[fanSpeed])
-            return
-        }
         console.warn(`Attempting to set unsupported dehumidifier property ${prop}`)
     }
 

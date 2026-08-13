@@ -12,6 +12,14 @@ export default class Device extends AABBDevice {
     constructor(HA: Connection, thinq: Thinq2Device, meta: Metadata) {
         super(HA, thinq)
         this.deviceConfig = HADevice.config(meta, { name: 'LG Smart Fridge' })
+        // Remove the incorrect generic night-setting sensor from the prior
+        // discovery payload before publishing the two separately mapped fields.
+        this.HA.publishConfig(this.id, {
+            ...this.deviceConfig,
+            components: {
+                night_setting: { platform: 'sensor' } as unknown as DeviceDiscovery['components'][string],
+            },
+        })
         this.setConfig(
             allowExtendedType({
                 ...this.deviceConfig,
@@ -71,12 +79,19 @@ export default class Device extends AABBDevice {
                         payload_on: 'ON',
                         payload_off: 'OFF',
                     },
-                    night_setting: {
+                    night_glare_prevention: {
                         platform: 'sensor',
                         icon: 'mdi:weather-night',
-                        unique_id: '$deviceid-night_setting',
-                        state_topic: '$this/night_setting',
-                        name: '야간 설정 상태',
+                        unique_id: '$deviceid-night_glare_prevention',
+                        state_topic: '$this/night_glare_prevention',
+                        name: '야간 눈부심 방지',
+                    },
+                    night_quiet: {
+                        platform: 'sensor',
+                        icon: 'mdi:volume-off',
+                        unique_id: '$deviceid-night_quiet',
+                        state_topic: '$this/night_quiet',
+                        name: '야간 조용히',
                     },
                     craft_ice: {
                         platform: 'select',
@@ -121,7 +136,10 @@ export default class Device extends AABBDevice {
     processAABB(buf: Buffer) {
         // 68바이트 상태 블록 규격 적용
         if (buf.length === 2 + 68 * 2 && buf[0] == 0x10 && buf[1] == 0xec) {
+            // Preserve the established status block mapping, then use the
+            // first (new) block for the advanced-setting change notification.
             this.processStatus(buf.subarray(2 + 68, 2 + 68 + 68))
+            this.publishAdvancedSettings(buf.subarray(2, 2 + 68))
         }
         if (buf.length === 2 + 68 && buf[0] == 0x10 && buf[1] == 0xeb) {
             this.processStatus(buf.subarray(2, 2 + 68))
@@ -137,13 +155,6 @@ export default class Device extends AABBDevice {
         const anyDoorOpen = curStatus[7] === 1 // 0=닫힘, 1=열림
         const expressFreezeOn = curStatus[3] === 2 // 1=끔, 2=켬
         const buttonSoundOn = curStatus[40] === 1 // 0=끔, 1=켬
-        const smartCareOn = curStatus[17] === 1
-        // Both Night Glare Prevention and Night Quiet share this status field.
-        // It identifies whether the active schedule is disabled, sunset-to-
-        // sunrise, or time-based; the 68-byte report does not distinguish the
-        // two feature names or include their brightness/time values.
-        const nightSettingStates = ['사용 안 함', '알 수 없음', '일몰~일출', '시간 설정']
-        const nightSettingStatus = nightSettingStates[curStatus[30]] || '알 수 없음'
 
         // 3. 크래프트 아이스 모드 (0=끔, 1=3 ICE, 2=6 ICE)
         const craftIceModes = ['꺼짐', '3개 제빙', '6개 제빙']
@@ -159,11 +170,17 @@ export default class Device extends AABBDevice {
         this.publishProperty('fridge_setpoint', setpointFridge)
         this.publishProperty('freezer_setpoint', setpointFreezer)
         this.publishProperty('express_freeze', expressFreezeOn ? 'ON' : 'OFF')
-        this.publishProperty('smart_care', smartCareOn ? 'ON' : 'OFF')
-        this.publishProperty('night_setting', nightSettingStatus)
+        this.publishAdvancedSettings(curStatus)
         this.publishProperty('craft_ice', craftIceMode)
         this.publishProperty('dispenser_mode', dispenserMode)
         this.publishProperty('button_sound', buttonSoundOn ? 'ON' : 'OFF')
+    }
+
+    private publishAdvancedSettings(status: Buffer) {
+        const glareModes = ['사용 안 함', '알 수 없음', '일몰에서 일출까지', '시간 설정']
+        this.publishProperty('smart_care', status[17] === 1 ? 'ON' : 'OFF')
+        this.publishProperty('night_glare_prevention', glareModes[status[30]] || '알 수 없음')
+        this.publishProperty('night_quiet', status[31] === 3 ? '시간 설정' : '사용 안 함')
     }
 
     setProperty(prop: string, mqttValue: string) {

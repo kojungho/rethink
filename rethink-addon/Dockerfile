@@ -2,13 +2,15 @@
 # Related files: config.yaml, run.sh, ../Dockerfile, ../package.json.
 FROM alpine:3.20 AS build
 
-ARG RETHINK_REF=master
+# Pinning the source revision makes Docker invalidate the remote-archive layer
+# when the add-on is rebuilt after a source update.
+ARG RETHINK_REF=9965847440b45e1e09ee3d14188310e60d612867
 
 WORKDIR /src
 
 RUN apk add --no-cache nodejs npm
 
-ADD https://github.com/kojungho/rethink/archive/refs/heads/${RETHINK_REF}.tar.gz /tmp/rethink.tar.gz
+ADD https://github.com/kojungho/rethink/archive/${RETHINK_REF}.tar.gz /tmp/rethink.tar.gz
 RUN tar -xzf /tmp/rethink.tar.gz --strip-components=1 -C /src \
     && npm ci --ignore-scripts \
     && npm run build \

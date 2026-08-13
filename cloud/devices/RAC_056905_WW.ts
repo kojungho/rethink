@@ -34,6 +34,17 @@ export default class Device extends TLVDevice {
         this.meta = meta
     }
 
+    processKeyValue(k: number, v: number) {
+        super.processKeyValue(k, v)
+
+        // On this model AI drying is stopped through the Auto-dry tag rather
+        // than the fan-level tag used to enable it. Keep the select state in
+        // sync with that acknowledgement.
+        if (k === 0x20e && v === 0 && this.fields_by_ha['ai_dry-']) {
+            this.HA.publishProperty(this.id, 'ai_dry-', '끔')
+        }
+    }
+
     drop() {
         if (this.tlvBlacklistDisableTimer != undefined) {
             clearTimeout(this.tlvBlacklistDisableTimer)
@@ -644,6 +655,48 @@ export default class Device extends TLVDevice {
             )
         }
 
+        // These device-setting tags were confirmed from RAC_056905_WW
+        // command captures. The display and button-sound flags are inverted:
+        // 0 means enabled, 1 means disabled.
+        this.addInvertedConfigSwitchField(config, 0x21f, 'display_light', '제품 화면', 'mdi:monitor')
+        this.addInvertedConfigSwitchField(config, 0x3a0, 'button_sound', '제품 소리', 'mdi:volume-high')
+
+        const aiDry = {
+            platform: 'select',
+            unique_id: '$deviceid-ai-dry',
+            name: 'AI 건조',
+            icon: 'mdi:hair-dryer',
+            entity_category: 'config',
+            options: ['끔', '약풍', '중풍', '강풍'],
+        }
+        config['components']['ai_dry'] = aiDry
+        this.addField(config, {
+            id: 0x1f2,
+            name: '',
+            comp: 'ai_dry',
+            read_xform: (raw) => ({ 0: '끔', 2: '약풍', 4: '중풍', 6: '강풍' } as Record<number, string>)[raw],
+            write_xform: (val) => ({ '끔': 0, '약풍': 2, '중풍': 4, '강풍': 6 } as Record<string, number>)[val],
+            write_callback: (value) => {
+                if (value !== 0) return true
+
+                // LG uses tag 0x20e (Auto-dry state) to stop AI drying.
+                this.raw_clip_state[0x20e] = 0
+                this.send([1, 1, 2, 1, 1], [{ t: 0x20e, v: 0 }])
+                return false
+            },
+        })
+
+        this.addConfigSwitchField(config, 0x3a2, 'heat_exchanger_cleaning', '열교환기 세척', 'mdi:air-filter')
+        this.addConfigSwitchFieldWithValues(
+            config,
+            0x165,
+            'all_cleaning',
+            '올클리닝',
+            'mdi:air-filter',
+            100,
+            8,
+        )
+
         if (this.raw_clip_state[0x2cc] & 4) {
             const compADry = {
                 platform: 'binary_sensor',
@@ -1004,6 +1057,52 @@ export default class Device extends TLVDevice {
             comp: name,
             write_xform: (val) => (val === 'ON' ? 1 : 0),
             read_xform: (raw) => (raw ? 'ON' : 'OFF'),
+        })
+    }
+
+    addInvertedConfigSwitchField(config: DeviceDiscovery, id: number, name: string, desc: string, icon: string) {
+        const comp = {
+            platform: 'switch',
+            unique_id: '$deviceid-' + name,
+            name: desc,
+            icon: icon,
+            entity_category: 'config',
+        }
+        config['components'][name] = comp
+
+        this.addField(config, {
+            id: id,
+            name: '',
+            comp: name,
+            write_xform: (val) => (val === 'ON' ? 0 : 1),
+            read_xform: (raw) => (raw === 0 ? 'ON' : 'OFF'),
+        })
+    }
+
+    addConfigSwitchFieldWithValues(
+        config: DeviceDiscovery,
+        id: number,
+        name: string,
+        desc: string,
+        icon: string,
+        onValue: number,
+        offValue: number,
+    ) {
+        const comp = {
+            platform: 'switch',
+            unique_id: '$deviceid-' + name,
+            name: desc,
+            icon: icon,
+            entity_category: 'config',
+        }
+        config['components'][name] = comp
+
+        this.addField(config, {
+            id: id,
+            name: '',
+            comp: name,
+            write_xform: (val) => (val === 'ON' ? onValue : offValue),
+            read_xform: (raw) => (raw === onValue ? 'ON' : 'OFF'),
         })
     }
 

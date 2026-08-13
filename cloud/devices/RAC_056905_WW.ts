@@ -34,17 +34,6 @@ export default class Device extends TLVDevice {
         this.meta = meta
     }
 
-    processKeyValue(k: number, v: number) {
-        super.processKeyValue(k, v)
-
-        // On this model AI drying is stopped through the Auto-dry tag rather
-        // than the fan-level tag used to enable it. Keep the select state in
-        // sync with that acknowledgement.
-        if (k === 0x20e && v === 0 && this.fields_by_ha['ai_dry-']) {
-            this.HA.publishProperty(this.id, 'ai_dry-', '끔')
-        }
-    }
-
     drop() {
         if (this.tlvBlacklistDisableTimer != undefined) {
             clearTimeout(this.tlvBlacklistDisableTimer)
@@ -661,31 +650,6 @@ export default class Device extends TLVDevice {
         this.addInvertedConfigSwitchField(config, 0x21f, 'display_light', '제품 화면', 'mdi:monitor')
         this.addInvertedConfigSwitchField(config, 0x3a0, 'button_sound', '제품 소리', 'mdi:volume-high')
 
-        const aiDry = {
-            platform: 'select',
-            unique_id: '$deviceid-ai-dry',
-            name: 'AI 건조',
-            icon: 'mdi:hair-dryer',
-            entity_category: 'config',
-            options: ['끔', '약풍', '중풍', '강풍'],
-        }
-        config['components']['ai_dry'] = aiDry
-        this.addField(config, {
-            id: 0x1f2,
-            name: '',
-            comp: 'ai_dry',
-            read_xform: (raw) => ({ 0: '끔', 2: '약풍', 4: '중풍', 6: '강풍' } as Record<number, string>)[raw],
-            write_xform: (val) => ({ '끔': 0, '약풍': 2, '중풍': 4, '강풍': 6 } as Record<string, number>)[val],
-            write_callback: (value) => {
-                if (value !== 0) return true
-
-                // LG uses tag 0x20e (Auto-dry state) to stop AI drying.
-                this.raw_clip_state[0x20e] = 0
-                this.send([1, 1, 2, 1, 1], [{ t: 0x20e, v: 0 }])
-                return false
-            },
-        })
-
         this.addConfigSwitchField(config, 0x3a2, 'heat_exchanger_cleaning', '열교환기 세척', 'mdi:air-filter')
         this.addConfigSwitchFieldWithValues(
             config,
@@ -698,13 +662,6 @@ export default class Device extends TLVDevice {
         )
 
         if (this.raw_clip_state[0x2cc] & 4) {
-            const compADry = {
-                platform: 'binary_sensor',
-                unique_id: '$deviceid-autodry',
-                name: 'Auto dry',
-                icon: 'mdi:hair-dryer',
-                entity_category: 'diagnostic',
-            }
             const compADryRem = {
                 platform: 'sensor',
                 unique_id: '$deviceid-autodryremain',
@@ -714,16 +671,7 @@ export default class Device extends TLVDevice {
                 suggested_display_precision: 0,
                 entity_category: 'diagnostic',
             }
-            config['components']['autodry'] = compADry
             config['components']['autodryremain'] = compADryRem
-
-            this.addField(config, {
-                id: 0x20e,
-                name: '',
-                comp: 'autodry',
-                writable: false,
-                read_xform: (raw) => (raw ? 'ON' : 'OFF'),
-            })
 
             this.addField(config, {
                 id: 0x225,
@@ -732,6 +680,39 @@ export default class Device extends TLVDevice {
                 writable: false,
             })
         }
+
+        const aiDryPower = {
+            platform: 'switch',
+            unique_id: '$deviceid-ai-dry-power',
+            name: 'AI 건조',
+            icon: 'mdi:hair-dryer',
+            entity_category: 'config',
+        }
+        config['components']['ai_dry_power'] = aiDryPower
+        this.addField(config, {
+            id: 0x20e,
+            name: '',
+            comp: 'ai_dry_power',
+            read_xform: (raw) => (raw === 255 ? 'ON' : 'OFF'),
+            write_xform: (val) => (val === 'ON' ? 255 : 0),
+        })
+
+        const aiDry = {
+            platform: 'select',
+            unique_id: '$deviceid-ai-dry',
+            name: 'AI 건조 풍량',
+            icon: 'mdi:fan',
+            entity_category: 'config',
+            options: ['약풍', '중풍', '강풍'],
+        }
+        config['components']['ai_dry'] = aiDry
+        this.addField(config, {
+            id: 0x1f2,
+            name: '',
+            comp: 'ai_dry',
+            read_xform: (raw) => ({ 2: '약풍', 4: '중풍', 6: '강풍' } as Record<number, string>)[raw],
+            write_xform: (val) => ({ '약풍': 2, '중풍': 4, '강풍': 6 } as Record<string, number>)[val],
+        })
 
         if (this.getIDUActionRunningTLVNum() != null) {
             this.addField(
@@ -854,6 +835,7 @@ export default class Device extends TLVDevice {
             components: {
                 vertical_swing_mode: { platform: 'select' } as unknown as DeviceDiscovery['components'][string],
                 horizontal_swing_mode: { platform: 'select' } as unknown as DeviceDiscovery['components'][string],
+                autodry: { platform: 'binary_sensor' } as unknown as DeviceDiscovery['components'][string],
             },
         })
         this.setConfig(config)

@@ -204,6 +204,14 @@ export default class Device extends AABBDevice {
         } else if (prop === 'smart_care') {
             baseMessage[2 + 17] = mqttValue === 'ON' ? 1 : 0
             this.send(baseMessage)
+            if (mqttValue === 'OFF') {
+                // The refrigerator app sends this confirmed follow-up after
+                // Smart Care+ is turned off; without it the first F017 write
+                // is acknowledged but the feature remains enabled.
+                const finalizeMessage = Buffer.from(baseMessage)
+                finalizeMessage[2 + 4] = 6
+                setTimeout(() => this.send(finalizeMessage), 250)
+            }
         } else if (prop === 'craft_ice') {
             const map: Record<string, number> = { '꺼짐': 0, '3개 제빙': 1, '6개 제빙': 2 }
             baseMessage[2 + 25] = map[mqttValue] ?? 0

@@ -138,7 +138,7 @@ export default class Device extends AABBDevice {
         if (buf.length === 2 + 68 * 2 && buf[0] == 0x10 && buf[1] == 0xec) {
             // Preserve the established status block mapping, then use the
             // first (new) block for the advanced-setting change notification.
-            this.processStatus(buf.subarray(2 + 68, 2 + 68 + 68))
+            this.processStatus(buf.subarray(2 + 68, 2 + 68 + 68), false)
             this.publishAdvancedSettings(buf.subarray(2, 2 + 68))
         }
         if (buf.length === 2 + 68 && buf[0] == 0x10 && buf[1] == 0xeb) {
@@ -146,7 +146,7 @@ export default class Device extends AABBDevice {
         }
     }
 
-    processStatus(curStatus: Buffer) {
+    processStatus(curStatus: Buffer, publishAdvancedSettings = true) {
         // 1. 온도 맵핑
         const setpointFridge = 8 - curStatus[1]
         const setpointFreezer = -14 - curStatus[2]
@@ -170,7 +170,7 @@ export default class Device extends AABBDevice {
         this.publishProperty('fridge_setpoint', setpointFridge)
         this.publishProperty('freezer_setpoint', setpointFreezer)
         this.publishProperty('express_freeze', expressFreezeOn ? 'ON' : 'OFF')
-        this.publishAdvancedSettings(curStatus)
+        if (publishAdvancedSettings) this.publishAdvancedSettings(curStatus)
         this.publishProperty('craft_ice', craftIceMode)
         this.publishProperty('dispenser_mode', dispenserMode)
         this.publishProperty('button_sound', buttonSoundOn ? 'ON' : 'OFF')

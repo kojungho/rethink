@@ -39,7 +39,6 @@ const QUERY_RESPONSE_HEX =
 
 // Bytes that the device sends in response to specific HA setProperty calls.
 const WRITE_MODE_FAN_ONLY_HEX = '01010400000065020101067E427E837F80B452'
-const WRITE_MODE_HEAT_HEX = '01010400000065020101077E447E837F902AF936'
 const WRITE_POWER_OFF_HEX = '01010400000065020101027DC00576'
 
 function makeDevice() {
@@ -99,18 +98,32 @@ describe(MODEL_ID, () => {
         // Conversely, airclean (0x2CC bit 0x1) is not unlocked.
         assert.ok(!components.airclean, 'airclean off (0x2CC bit 0x1 unset)')
 
-        // Swing modes registered because 0x2CD has both 0x4 and 0x8.
-        assert.deepEqual(components.climate.swing_modes, ['1', '2', '3', '4', '5', '6', 'on', 'off'])
-        assert.deepEqual(components.climate.swing_horizontal_modes, [
-            '1',
+        // The appliance exposes direction controls as separately named selects.
+        assert.deepEqual(components.climate.modes, ['off', 'cool', 'dry', 'fan_only'])
+        assert.deepEqual(components.climate.preset_modes, ['공기 청정'])
+        assert.deepEqual(components.vertical_swing_mode.options, [
+            '1(상)',
             '2',
             '3',
             '4',
             '5',
-            '1-3',
-            '3-5',
-            'on',
-            'off',
+            '6(하)',
+            '집중회전(상단)',
+            '집중회전(중간)',
+            '집중회전(하단)',
+            '상하회전',
+            '정지',
+        ])
+        assert.deepEqual(components.horizontal_swing_mode.options, [
+            '1(좌)',
+            '2',
+            '3',
+            '4',
+            '5(우)',
+            '좌중회전',
+            '중우회전',
+            '좌우회전',
+            '정지',
         ])
 
         dev.drop()
@@ -153,20 +166,6 @@ describe(MODEL_ID, () => {
 
         assert.equal(thinq.outbox.length, 1)
         assert.equal(hex(thinq.outbox[0]), WRITE_MODE_FAN_ONLY_HEX.toUpperCase())
-
-        dev.drop()
-    })
-
-    test('HA write climate-mode=heat emits expected bytes', (t) => {
-        const { thinq, dev, ha } = buildReadyDevice(t)
-        // Pre-state observed in the capture at the moment of this write.
-        dev.raw_clip_state[0x1fa] = 3
-        dev.raw_clip_state[0x1fe] = 42 // 21C
-
-        ha.setProperty(DEVICE_ID, 'climate', 'mode_command', 'heat')
-
-        assert.equal(thinq.outbox.length, 1)
-        assert.equal(hex(thinq.outbox[0]), WRITE_MODE_HEAT_HEX.toUpperCase())
 
         dev.drop()
     })

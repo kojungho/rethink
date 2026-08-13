@@ -204,6 +204,10 @@ export default class Device extends TLVDevice {
             // For now, clear the reported action.
             action = 'None'
             increaseQueryInterval = true // assume it is running
+        } else if (modeTLV === 46) {
+            // Air purification is an operating mode on RAC_056905_WW, not
+            // the optional air-cleaning switch.
+            action = 'fan'
         } else {
             action = modes2ha[modeTLV]
             increaseQueryInterval = action != null && action !== 'fan'
@@ -280,6 +284,14 @@ export default class Device extends TLVDevice {
                     /* TODO: some devices report these temp ranges via tags 0x2e1 - 0x2ec */
                     min_temp: 18,
                     max_temp: 30,
+                    // This cooling-only model does not implement Auto or Heat.
+                    modes: ['off', 'cool', 'dry', 'fan_only'],
+                    // The appliance reports air purification as mode 46.  It
+                    // is represented as a preset because HA climate modes are
+                    // limited to standard HVAC modes.
+                    preset_modes: ['공기 청정'],
+                    preset_mode_state_topic: '$this/climate-preset_mode',
+                    preset_mode_command_topic: '$this/climate-preset_mode/set',
                     /* TODO: get from 0x2c2 */
                     fan_modes: ['auto', 'very low', 'low', 'medium', 'high', 'very high'],
                     /* TODO: get allowed op modes from 0x2c1 */
@@ -331,18 +343,20 @@ export default class Device extends TLVDevice {
             name: 'mode',
             comp: 'climate',
             read_xform: (raw) => {
-                const modes2ha = ['cool', 'dry', 'fan_only', undefined, 'heat', undefined, 'auto']
+                const modes2ha = ['cool', 'dry', 'fan_only']
                 if (this.getPowerTLV() === 0) return 'off'
+                if (raw === 46) return 'fan_only'
                 return modes2ha[raw]
             },
             read_callback: (val) => {
+                this.HA.publishProperty(this.id, 'climate-preset_mode', this.getModeTLV() === 46 ? '공기 청정' : 'none')
                 if (typeof val !== 'string') return true
                 if (this.modePrev !== val) for (const hook of this.modeChangeHooks) hook()
                 this.modePrev = val
                 return true
             },
             write_xform: (val) => {
-                const modes2clip: Record<string, number> = { cool: 0, dry: 1, fan_only: 2, heat: 4, auto: 6 }
+                const modes2clip: Record<string, number> = { cool: 0, dry: 1, fan_only: 2 }
                 if (val === 'off') {
                     // Call function power (0x1f7) with value OFF
                     this.setProperty('climate-power', 'OFF')
@@ -352,6 +366,19 @@ export default class Device extends TLVDevice {
             },
             write_attach: [0x1fa, 0x1fe],
         })
+
+        // `preset_mode` controls the same wire field as the climate mode, so
+        // it is registered manually rather than as a second read field.
+        this.fields_by_ha['climate-preset_mode'] = {
+            name: 'preset_mode',
+            comp: 'climate',
+            write_xform: (val) => (val === '공기 청정' ? 46 : null),
+            write_callback: (val) => {
+                this.raw_clip_state[0x1f9] = val
+                this.send([1, 1, 2, 1, 1], [{ t: 0x1f9, v: val }])
+                return false
+            },
+        }
 
         this.addField(config, {
             id: 0x1fa,
@@ -395,26 +422,38 @@ export default class Device extends TLVDevice {
         })
 
         if (this.raw_clip_state[0x2cd] & 4) {
-            config['components']['climate']['swing_modes'] = ['1', '2', '3', '4', '5', '6', 'on', 'off']
+            config['components']['vertical_swing_mode'] = {
+                platform: 'select',
+                unique_id: '$deviceid-vertical_swing_mode',
+                name: '상하 회전 모드',
+                icon: 'mdi:arrow-up-down',
+                options: ['1(상)', '2', '3', '4', '5', '6(하)', '집중회전(상단)', '집중회전(중간)', '집중회전(하단)', '상하회전', '정지'],
+            }
             this.addField(config, {
                 id: 0x321,
-                name: 'swing_mode',
-                comp: 'climate',
+                name: '',
+                comp: 'vertical_swing_mode',
                 read_xform: (raw) => {
-                    const modes2ha = ['off', '1', '2', '3', '4', '5', '6']
-                    modes2ha[100] = 'on'
+                    const modes2ha = ['정지', '1(상)', '2', '3', '4', '5', '6(하)']
+                    modes2ha[14] = '집중회전(상단)'
+                    modes2ha[25] = '집중회전(중간)'
+                    modes2ha[36] = '집중회전(하단)'
+                    modes2ha[100] = '상하회전'
                     return modes2ha[raw]
                 },
                 write_xform: (val) => {
                     const modes2clip: Record<string, number> = {
-                        off: 0,
-                        '1': 1,
+                        '정지': 0,
+                        '1(상)': 1,
                         '2': 2,
                         '3': 3,
                         '4': 4,
                         '5': 5,
-                        '6': 6,
-                        on: 100,
+                        '6(하)': 6,
+                        '집중회전(상단)': 14,
+                        '집중회전(중간)': 25,
+                        '집중회전(하단)': 36,
+                        '상하회전': 100,
                     }
                     return modes2clip[val]
                 },
@@ -422,39 +461,35 @@ export default class Device extends TLVDevice {
         }
 
         if (this.raw_clip_state[0x2cd] & 8) {
-            config['components']['climate']['swing_horizontal_modes'] = [
-                '1',
-                '2',
-                '3',
-                '4',
-                '5',
-                '1-3',
-                '3-5',
-                'on',
-                'off',
-            ]
+            config['components']['horizontal_swing_mode'] = {
+                platform: 'select',
+                unique_id: '$deviceid-horizontal_swing_mode',
+                name: '수평 회전 모드',
+                icon: 'mdi:arrow-left-right',
+                options: ['1(좌)', '2', '3', '4', '5(우)', '좌중회전', '중우회전', '좌우회전', '정지'],
+            }
             this.addField(config, {
                 id: 0x322,
-                name: 'swing_horizontal_mode',
-                comp: 'climate',
+                name: '',
+                comp: 'horizontal_swing_mode',
                 read_xform: (raw) => {
-                    const modes2ha = ['off', '1', '2', '3', '4', '5']
-                    modes2ha[13] = '1-3'
-                    modes2ha[35] = '3-5'
-                    modes2ha[100] = 'on'
+                    const modes2ha = ['정지', '1(좌)', '2', '3', '4', '5(우)']
+                    modes2ha[13] = '좌중회전'
+                    modes2ha[35] = '중우회전'
+                    modes2ha[100] = '좌우회전'
                     return modes2ha[raw]
                 },
                 write_xform: (val) => {
                     const modes2clip: Record<string, number> = {
-                        off: 0,
-                        '1': 1,
+                        '정지': 0,
+                        '1(좌)': 1,
                         '2': 2,
                         '3': 3,
                         '4': 4,
-                        '5': 5,
-                        '1-3': 13,
-                        '3-5': 35,
-                        on: 100,
+                        '5(우)': 5,
+                        '좌중회전': 13,
+                        '중우회전': 35,
+                        '좌우회전': 100,
                     }
                     return modes2clip[val]
                 },
@@ -564,7 +599,7 @@ export default class Device extends TLVDevice {
                 0x20f,
                 'airclean',
                 /* Same desc as in lg_thinq */
-                'Air purify',
+                '공기 청정',
                 'mdi:air-purifier',
                 'airClean',
             )
@@ -573,7 +608,7 @@ export default class Device extends TLVDevice {
         const jetCool: boolean = !!(this.raw_clip_state[0x2cd] & 1)
         const jetHeat: boolean = !!(this.raw_clip_state[0x2cd] & 2)
         if (jetCool || jetHeat) {
-            this.addJetField(config, 0x323, 'jet', 'Jet', 'mdi:wind-power', jetCool, jetHeat)
+            this.addJetField(config, 0x323, 'jet', 'Jet', 'mdi:snowflake', jetCool, jetHeat)
         }
 
         if (this.raw_clip_state[0x2d3] & 1) {
@@ -592,8 +627,8 @@ export default class Device extends TLVDevice {
                 config,
                 0x20d,
                 'energysave',
-                'Energy saving',
-                'mdi:flower',
+                '절전',
+                'mdi:leaf',
                 'energySave',
                 (mode) => mode === 0,
             )
@@ -806,8 +841,7 @@ export default class Device extends TLVDevice {
         jetCool: boolean,
         jetHeat: boolean,
     ) {
-        const descFull =
-            desc + ' ' + (jetCool ? 'cool' : '') + (jetCool && jetHeat ? '/' : '') + (jetHeat ? 'heat' : '')
+        const descFull = jetCool && !jetHeat ? '파워 냉방' : jetHeat && !jetCool ? '파워 난방' : '파워 운전'
 
         const comp = {
             platform: 'switch',

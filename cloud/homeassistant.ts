@@ -175,6 +175,8 @@ export type ComponentInfo = {
     name?: string | null
     platform: string
     unique_id: string
+    icon?: string
+    options?: string[]
 }
 
 export type DeviceDiscovery = {
@@ -193,7 +195,11 @@ export type ClimateComponent = ComponentInfo & {
     precision?: number
     min_temp?: number
     max_temp?: number
+    modes?: string[]
     fan_modes?: string[]
+    preset_modes?: string[]
+    preset_mode_state_topic?: string
+    preset_mode_command_topic?: string
     swing_modes?: string[]
     swing_horizontal_modes?: string[]
 }

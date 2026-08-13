@@ -12,6 +12,15 @@ export default class Device extends AABBDevice {
     constructor(HA: Connection, thinq: Thinq2Device, meta: Metadata) {
         super(HA, thinq)
         this.deviceConfig = HADevice.config(meta, { name: 'LG Smart Fridge' })
+        // The first night-setting implementation used MQTT select discovery.
+        // It has no safe command mapping yet, so replace it with a read-only
+        // sensor after explicitly removing that previous component type.
+        this.HA.publishConfig(this.id, {
+            ...this.deviceConfig,
+            components: {
+                night_setting_status: { platform: 'select' } as unknown as DeviceDiscovery['components'][string],
+            },
+        })
         this.setConfig(
             allowExtendedType({
                 ...this.deviceConfig,

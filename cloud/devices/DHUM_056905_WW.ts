@@ -45,6 +45,29 @@ export default class Device extends TLVDevice {
             allowExtendedType({
                 ...this.deviceConfig,
                 components: {
+                    // Provide one climate entity for the controls that belong
+                    // together.  The individual controls below remain
+                    // available for dashboards and automations that use them.
+                    climate: {
+                        platform: 'climate',
+                        unique_id: '$deviceid-climate',
+                        name: null,
+                        modes: ['off', 'dry'],
+                        mode_state_topic: '$this/climate_mode',
+                        mode_command_topic: '$this/climate_mode/set',
+                        action_topic: '$this/climate_action',
+                        power_command_topic: '$this/power/set',
+                        payload_on: 'ON',
+                        payload_off: 'OFF',
+                        fan_modes: Object.values(fanSpeeds),
+                        fan_mode_state_topic: '$this/fan_speed',
+                        fan_mode_command_topic: '$this/fan_speed/set',
+                        current_humidity_topic: '$this/current_humidity',
+                        target_humidity_state_topic: '$this/target_humidity',
+                        target_humidity_command_topic: '$this/target_humidity/set',
+                        min_humidity: 30,
+                        max_humidity: 70,
+                    },
                     power: {
                         platform: 'switch',
                         unique_id: '$deviceid-power',
@@ -199,7 +222,12 @@ export default class Device extends TLVDevice {
 
     processKeyValue(id: number, value: number) {
         this.raw_clip_state[id] = value
-        if (id === fields.power) this.HA.publishProperty(this.id, 'power', value ? 'ON' : 'OFF')
+        if (id === fields.power) {
+            const on = value !== 0
+            this.HA.publishProperty(this.id, 'power', on ? 'ON' : 'OFF')
+            this.HA.publishProperty(this.id, 'climate_mode', on ? 'dry' : 'off')
+            this.HA.publishProperty(this.id, 'climate_action', on ? 'drying' : 'off')
+        }
         if (id === fields.mode && modes[value]) this.HA.publishProperty(this.id, 'operating_mode', modes[value])
         if (id === fields.fanSpeed && fanSpeeds[value]) this.HA.publishProperty(this.id, 'fan_speed', fanSpeeds[value])
         if (id === fields.targetHumidity) this.HA.publishProperty(this.id, 'target_humidity', value)
@@ -213,6 +241,12 @@ export default class Device extends TLVDevice {
     setProperty(prop: string, value: string) {
         const bool = (id: number) => this.write(id, value === 'ON' ? 1 : 0)
         if (prop === 'power') return bool(fields.power)
+        // "dry" only changes the running state. It deliberately preserves the
+        // appliance's selected detailed mode (smart, rapid, laundry, ...).
+        if (prop === 'climate_mode') {
+            if (value === 'off') return this.write(fields.power, 0)
+            if (value === 'dry') return this.write(fields.power, 1)
+        }
         if (prop === 'uvnano') return bool(fields.uVnano)
         if (prop === 'lighting') return bool(fields.lighting)
         if (prop === 'display_light') return this.write(fields.displayLight, value === 'ON' ? 0 : 1)

@@ -267,7 +267,7 @@ export default class Device extends AABBDevice {
     private setNightGlareValue(prop: string, value: string) {
         const number = Number(value)
         if (!Number.isInteger(number)) return
-        const key = prop.replace('night_glare_', '') as keyof typeof this.nightGlare
+        const key = prop.replace('night_glare_', '')
         if (key === 'start_hour' || key === 'start_minute' || key === 'end_hour' || key === 'end_minute' || key === 'brightness') {
             const mappedKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase()) as 'startHour' | 'startMinute' | 'endHour' | 'endMinute' | 'brightness'
             this.nightGlare[mappedKey] = number

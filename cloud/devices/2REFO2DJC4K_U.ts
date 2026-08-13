@@ -72,12 +72,13 @@ export default class Device extends AABBDevice {
                         payload_off: 'OFF',
                     },
                     night_setting_status: {
-                        platform: 'sensor',
+                        platform: 'select',
                         icon: 'mdi:weather-night',
                         unique_id: '$deviceid-night_setting_status',
                         state_topic: '$this/night_setting_status',
                         name: '야간 설정 상태',
                         entity_category: 'config',
+                        options: ['사용 안 함', '일몰~일출', '시간 설정', '알 수 없음'],
                     },
                     craft_ice: {
                         platform: 'select',

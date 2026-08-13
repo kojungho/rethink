@@ -45,6 +45,18 @@ export default class Device extends TLVDevice {
     constructor(HA: Connection, thinq: Thinq2Device, meta: Metadata) {
         super(HA, thinq)
         this.deviceConfig = HADevice.config(meta, { name: 'LG Dehumidifier' })
+
+        // The previous version exposed this appliance as a `climate` component.
+        // Device discovery keeps omitted components, so explicitly remove that
+        // legacy component before publishing the new humidifier configuration.
+        // A component with only its platform is Home Assistant's documented
+        // device-discovery removal payload.
+        this.HA.publishConfig(this.id, {
+            ...this.deviceConfig,
+            components: {
+                climate: { platform: 'climate' } as unknown as DeviceDiscovery['components'][string],
+            },
+        })
         this.setConfig(
             allowExtendedType({
                 ...this.deviceConfig,
@@ -217,6 +229,10 @@ export default class Device extends TLVDevice {
         this.processKeyValue(fields.mode, buf[17])
         this.processKeyValue(fields.targetHumidity, buf[18])
         this.processKeyValue(fields.fanSpeed, buf[19])
+        // The humidity-sensor setting is reported in this status layout rather
+        // than in the A7 02 TLV settings packet: 1 = always, 0 = only while
+        // the appliance is operating. Confirmed from the two supplied traces.
+        this.HA.publishProperty(this.id, 'humidity_sensor_mode', buf[24] ? '항상 검침' : '운전 중에만 검침')
         // Offset 56 is the measured room humidity (for example 0x37 = 55%).
         this.HA.publishProperty(this.id, 'current_humidity', buf[56])
         // Captures show byte 36 changes only with the appliance child lock.

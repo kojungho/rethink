@@ -161,10 +161,9 @@ export default class Device extends AABBDevice {
     processAABB(buf: Buffer) {
         // 68바이트 상태 블록 규격 적용
         if (buf.length === 2 + 68 * 2 && buf[0] == 0x10 && buf[1] == 0xec) {
-            // Preserve the established status block mapping, then use the
-            // first (new) block for the advanced-setting change notification.
-            this.processStatus(buf.subarray(2 + 68, 2 + 68 + 68), false)
-            this.publishAdvancedSettings(buf.subarray(2, 2 + 68))
+            // 이 프레임의 두 번째 상태 블록이 명령 처리 후의 확정 상태다.
+            // 첫 번째 블록을 사용하면 Smart Care+가 바로 이전 값으로 덮인다.
+            this.processStatus(buf.subarray(2 + 68, 2 + 68 + 68))
         }
         if (buf.length === 2 + 68 && buf[0] == 0x10 && buf[1] == 0xeb) {
             this.processStatus(buf.subarray(2, 2 + 68))

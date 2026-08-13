@@ -38,6 +38,7 @@ const fanSpeeds: Record<number, string> = {
 }
 
 const fanSpeedValues = Object.fromEntries(Object.entries(fanSpeeds).map(([key, value]) => [value, Number(key)]))
+const humidifierModes = Object.values(modes).flatMap((mode) => Object.values(fanSpeeds).map((fanSpeed) => `${mode} · ${fanSpeed}`))
 
 export default class Device extends TLVDevice {
     readonly deviceConfig: DeviceDiscovery
@@ -71,9 +72,11 @@ export default class Device extends TLVDevice {
                         action_topic: '$this/humidifier_action',
                         payload_on: 'ON',
                         payload_off: 'OFF',
-                        modes: Object.values(modes),
-                        mode_state_topic: '$this/operating_mode',
-                        mode_command_topic: '$this/operating_mode/set',
+                        // The humidifier platform has one mode selector. Pair
+                        // operating mode and fan speed so both can be set here.
+                        modes: humidifierModes,
+                        mode_state_topic: '$this/humidifier_mode',
+                        mode_command_topic: '$this/humidifier_mode/set',
                         current_humidity_topic: '$this/current_humidity',
                         target_humidity_state_topic: '$this/target_humidity',
                         target_humidity_command_topic: '$this/target_humidity/set',
@@ -146,7 +149,7 @@ export default class Device extends TLVDevice {
                         entity_category: 'config',
                         state_topic: '$this/humidity_sensor_mode',
                         command_topic: '$this/humidity_sensor_mode/set',
-                        options: ['항상 검침', '운전 중에만 검침'],
+                        options: ['항상', '운전시'],
                     },
                     child_lock: {
                         platform: 'binary_sensor',
@@ -206,7 +209,7 @@ export default class Device extends TLVDevice {
             buf[10] === humiditySensorCommand >> 8 &&
             buf[11] === (humiditySensorCommand & 0xff)
         ) {
-            this.HA.publishProperty(this.id, 'humidity_sensor_mode', buf[12] ? '항상 검침' : '운전 중에만 검침')
+            this.HA.publishProperty(this.id, 'humidity_sensor_mode', buf[12] ? '항상' : '운전시')
             return
         }
         // This model reports its current configuration in an A7 02 packet.
@@ -249,7 +252,7 @@ export default class Device extends TLVDevice {
         // The humidity-sensor setting is reported in this status layout rather
         // than in the A7 02 TLV settings packet: 1 = always, 0 = only while
         // the appliance is operating. Confirmed from the two supplied traces.
-        this.HA.publishProperty(this.id, 'humidity_sensor_mode', buf[24] ? '항상 검침' : '운전 중에만 검침')
+        this.HA.publishProperty(this.id, 'humidity_sensor_mode', buf[24] ? '항상' : '운전시')
         // Offset 56 is the measured room humidity (for example 0x37 = 55%).
         this.HA.publishProperty(this.id, 'current_humidity', buf[56])
         // Captures show byte 36 changes only with the appliance child lock.
@@ -275,10 +278,17 @@ export default class Device extends TLVDevice {
         }
         if (id === fields.mode && modes[value]) this.HA.publishProperty(this.id, 'operating_mode', modes[value])
         if (id === fields.fanSpeed && fanSpeeds[value]) this.HA.publishProperty(this.id, 'fan_speed', fanSpeeds[value])
+        if ((id === fields.mode || id === fields.fanSpeed) && modes[this.raw_clip_state[fields.mode]] && fanSpeeds[this.raw_clip_state[fields.fanSpeed]]) {
+            this.HA.publishProperty(
+                this.id,
+                'humidifier_mode',
+                `${modes[this.raw_clip_state[fields.mode]]} · ${fanSpeeds[this.raw_clip_state[fields.fanSpeed]]}`,
+            )
+        }
         if (id === fields.targetHumidity) this.HA.publishProperty(this.id, 'target_humidity', value)
         if (id === fields.offTimer) this.HA.publishProperty(this.id, 'off_timer', value)
         if (id === fields.humiditySensorMode)
-            this.HA.publishProperty(this.id, 'humidity_sensor_mode', value ? '항상 검침' : '운전 중에만 검침')
+            this.HA.publishProperty(this.id, 'humidity_sensor_mode', value ? '항상' : '운전시')
         if (id === fields.uVnano) this.HA.publishProperty(this.id, 'uvnano', value ? 'ON' : 'OFF')
         if (id === fields.lighting) this.HA.publishProperty(this.id, 'lighting', value ? 'ON' : 'OFF')
         if (id === fields.displayLight) this.HA.publishProperty(this.id, 'display_light', value ? 'OFF' : 'ON')
@@ -296,7 +306,14 @@ export default class Device extends TLVDevice {
         if (prop === 'fan_speed' && fanSpeedValues[value] != null) return this.write(fields.fanSpeed, fanSpeedValues[value])
         if (prop === 'target_humidity') return this.write(fields.targetHumidity, Number(value))
         if (prop === 'off_timer') return this.write(fields.offTimer, Number(value))
-        if (prop === 'humidity_sensor_mode') return this.writeHumiditySensorMode(value === '항상 검침' ? 1 : 0)
+        if (prop === 'humidity_sensor_mode') return this.writeHumiditySensorMode(value === '항상' ? 1 : 0)
+        if (prop === 'humidifier_mode') {
+            const [mode, fanSpeed] = value.split(' · ')
+            if (modeValues[mode] == null || fanSpeedValues[fanSpeed] == null) return
+            this.write(fields.mode, modeValues[mode])
+            this.write(fields.fanSpeed, fanSpeedValues[fanSpeed])
+            return
+        }
         console.warn(`Attempting to set unsupported dehumidifier property ${prop}`)
     }
 

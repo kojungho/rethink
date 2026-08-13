@@ -60,6 +60,25 @@ export default class Device extends AABBDevice {
                         payload_on: 'ON',
                         payload_off: 'OFF',
                     },
+                    smart_care: {
+                        platform: 'switch',
+                        icon: 'mdi:heart-pulse',
+                        unique_id: '$deviceid-smart_care',
+                        state_topic: '$this/smart_care',
+                        command_topic: '$this/smart_care/set',
+                        name: '스마트케어+',
+                        entity_category: 'config',
+                        payload_on: 'ON',
+                        payload_off: 'OFF',
+                    },
+                    night_setting_status: {
+                        platform: 'sensor',
+                        icon: 'mdi:weather-night',
+                        unique_id: '$deviceid-night_setting_status',
+                        state_topic: '$this/night_setting_status',
+                        name: '야간 설정 상태',
+                        entity_category: 'config',
+                    },
                     craft_ice: {
                         platform: 'select',
                         icon: 'mdi:ice-pop',
@@ -119,6 +138,13 @@ export default class Device extends AABBDevice {
         const anyDoorOpen = curStatus[7] === 1 // 0=닫힘, 1=열림
         const expressFreezeOn = curStatus[3] === 2 // 1=끔, 2=켬
         const buttonSoundOn = curStatus[40] === 1 // 0=끔, 1=켬
+        const smartCareOn = curStatus[17] === 1
+        // Both Night Glare Prevention and Night Quiet share this status field.
+        // It identifies whether the active schedule is disabled, sunset-to-
+        // sunrise, or time-based; the 68-byte report does not distinguish the
+        // two feature names or include their brightness/time values.
+        const nightSettingStates = ['사용 안 함', '알 수 없음', '일몰~일출', '시간 설정']
+        const nightSettingStatus = nightSettingStates[curStatus[30]] || '알 수 없음'
 
         // 3. 크래프트 아이스 모드 (0=끔, 1=3 ICE, 2=6 ICE)
         const craftIceModes = ['꺼짐', '3개 제빙', '6개 제빙']
@@ -134,6 +160,8 @@ export default class Device extends AABBDevice {
         this.publishProperty('fridge_setpoint', setpointFridge)
         this.publishProperty('freezer_setpoint', setpointFreezer)
         this.publishProperty('express_freeze', expressFreezeOn ? 'ON' : 'OFF')
+        this.publishProperty('smart_care', smartCareOn ? 'ON' : 'OFF')
+        this.publishProperty('night_setting_status', nightSettingStatus)
         this.publishProperty('craft_ice', craftIceMode)
         this.publishProperty('dispenser_mode', dispenserMode)
         this.publishProperty('button_sound', buttonSoundOn ? 'ON' : 'OFF')
@@ -156,6 +184,9 @@ export default class Device extends AABBDevice {
             this.send(baseMessage)
         } else if (prop === 'express_freeze') {
             baseMessage[2 + 3] = mqttValue === 'ON' ? 2 : 1
+            this.send(baseMessage)
+        } else if (prop === 'smart_care') {
+            baseMessage[2 + 17] = mqttValue === 'ON' ? 1 : 0
             this.send(baseMessage)
         } else if (prop === 'craft_ice') {
             const map: Record<string, number> = { '꺼짐': 0, '3개 제빙': 1, '6개 제빙': 2 }

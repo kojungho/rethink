@@ -16,13 +16,22 @@ export default class Device extends AABBDevice {
             allowExtendedType({
                 ...this.deviceConfig,
                 components: {
+                    power_status: {
+                        platform: 'binary_sensor',
+                        device_class: 'power',
+                        unique_id: '$deviceid-power_status',
+                        state_topic: '$this/power_status',
+                        name: '전원 상태',
+                        payload_on: 'ON',
+                        payload_off: 'OFF',
+                    },
                     fridge_setpoint: {
                         platform: 'number',
                         device_class: 'temperature',
                         unique_id: '$deviceid-fridge_setpoint',
                         state_topic: '$this/fridge_setpoint',
                         command_topic: '$this/fridge_setpoint/set',
-                        name: 'Fridge temperature',
+                        name: '냉장실 온도',
                         ...fridgeRange('C'),
                     },
                     freezer_setpoint: {
@@ -31,7 +40,7 @@ export default class Device extends AABBDevice {
                         unique_id: '$deviceid-freezer_setpoint',
                         state_topic: '$this/freezer_setpoint',
                         command_topic: '$this/freezer_setpoint/set',
-                        name: 'Freezer temperature',
+                        name: '냉동실 온도',
                         ...freezerRange('C'),
                     },
                     door: {
@@ -39,7 +48,7 @@ export default class Device extends AABBDevice {
                         device_class: 'door',
                         unique_id: '$deviceid-door',
                         state_topic: '$this/door',
-                        name: 'Door',
+                        name: '문 열림',
                     },
                     express_freeze: {
                         platform: 'switch',
@@ -47,27 +56,29 @@ export default class Device extends AABBDevice {
                         unique_id: '$deviceid-express_freeze',
                         state_topic: '$this/express_freeze',
                         command_topic: '$this/express_freeze/set',
-                        name: 'Express Freeze',
+                        name: '급속 냉동',
                         payload_on: 'ON',
                         payload_off: 'OFF',
                     },
                     craft_ice: {
                         platform: 'select',
                         icon: 'mdi:ice-pop',
-                        name: 'Craft Ice Mode',
+                        name: '크래프트 아이스',
                         unique_id: '$deviceid-craft_ice',
                         state_topic: '$this/craft_ice',
                         command_topic: '$this/craft_ice/set',
-                        options: ['OFF', '3_ICE', '6_ICE'],
+                        options: ['꺼짐', '3개 제빙', '6개 제빙'],
+                        entity_category: 'config',
                     },
                     dispenser_mode: {
                         platform: 'select',
                         icon: 'mdi:water',
-                        name: 'Dispenser Mode',
+                        name: '출수 모드',
                         unique_id: '$deviceid-dispenser_mode',
                         state_topic: '$this/dispenser_mode',
                         command_topic: '$this/dispenser_mode/set',
-                        options: ['NONE', 'CRUSHED', 'WATER', 'CUBED'],
+                        options: ['선택 안 함', '조각 얼음', '정수', '각얼음'],
+                        entity_category: 'config',
                     },
                     button_sound: {
                         platform: 'switch',
@@ -75,7 +86,8 @@ export default class Device extends AABBDevice {
                         unique_id: '$deviceid-button_sound',
                         state_topic: '$this/button_sound',
                         command_topic: '$this/button_sound/set',
-                        name: 'Button Sound',
+                        name: '버튼음',
+                        entity_category: 'config',
                         payload_on: 'ON',
                         payload_off: 'OFF',
                     },
@@ -109,15 +121,16 @@ export default class Device extends AABBDevice {
         const buttonSoundOn = curStatus[40] === 1 // 0=끔, 1=켬
 
         // 3. 크래프트 아이스 모드 (0=끔, 1=3 ICE, 2=6 ICE)
-        const craftIceModes = ['OFF', '3_ICE', '6_ICE']
-        const craftIceMode = craftIceModes[curStatus[25]] || 'OFF'
+        const craftIceModes = ['꺼짐', '3개 제빙', '6개 제빙']
+        const craftIceMode = craftIceModes[curStatus[25]] || '꺼짐'
 
         // 4. 정수기 출수 모드 (0=선택안함/마지막, 1=조각얼음, 2=정수, 3=각얼음) - 66번 오프셋 교정완료
-        const dispenserModes = ['NONE', 'CRUSHED', 'WATER', 'CUBED']
-        const dispenserMode = dispenserModes[curStatus[66]] || 'NONE'
+        const dispenserModes = ['선택 안 함', '조각 얼음', '정수', '각얼음']
+        const dispenserMode = dispenserModes[curStatus[66]] || '선택 안 함'
 
         // MQTT 퍼블리시
         this.publishProperty('door', anyDoorOpen ? 'ON' : 'OFF')
+        this.publishProperty('power_status', 'ON')
         this.publishProperty('fridge_setpoint', setpointFridge)
         this.publishProperty('freezer_setpoint', setpointFreezer)
         this.publishProperty('express_freeze', expressFreezeOn ? 'ON' : 'OFF')
@@ -145,11 +158,11 @@ export default class Device extends AABBDevice {
             baseMessage[2 + 3] = mqttValue === 'ON' ? 2 : 1
             this.send(baseMessage)
         } else if (prop === 'craft_ice') {
-            const map: Record<string, number> = { OFF: 0, '3_ICE': 1, '6_ICE': 2 }
+            const map: Record<string, number> = { '꺼짐': 0, '3개 제빙': 1, '6개 제빙': 2 }
             baseMessage[2 + 25] = map[mqttValue] ?? 0
             this.send(baseMessage)
         } else if (prop === 'dispenser_mode') {
-            const map: Record<string, number> = { NONE: 0, CRUSHED: 1, WATER: 2, CUBED: 3 }
+            const map: Record<string, number> = { '선택 안 함': 0, '조각 얼음': 1, 정수: 2, 각얼음: 3 }
             baseMessage[2 + 66] = map[mqttValue] ?? 0  // 이전 코드 65에서 66으로 수정됨
             this.send(baseMessage)
         } else if (prop === 'button_sound') {

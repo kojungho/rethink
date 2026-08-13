@@ -23,18 +23,18 @@ const fields = {
 const humiditySensorCommand = 0x50c
 
 const modes: Record<number, string> = {
-    0x11: 'SMART_DEHUMIDIFICATION',
-    0x12: 'FAST_DEHUMIDIFICATION',
-    0x13: 'SILENT_DEHUMIDIFICATION',
-    0x14: 'INTENSIVE_DRYING',
-    0x15: 'LAUNDRY_DRYING',
+    0x11: '스마트 제습',
+    0x12: '쾌속 제습',
+    0x13: '저소음 제습',
+    0x14: '집중 건조',
+    0x15: '의류 건조',
 }
 
 const modeValues = Object.fromEntries(Object.entries(modes).map(([key, value]) => [value, Number(key)]))
 
 const fanSpeeds: Record<number, string> = {
-    2: 'LOW',
-    6: 'HIGH',
+    2: '약풍',
+    6: '강풍',
 }
 
 const fanSpeedValues = Object.fromEntries(Object.entries(fanSpeeds).map(([key, value]) => [value, Number(key)]))
@@ -49,23 +49,19 @@ export default class Device extends TLVDevice {
             allowExtendedType({
                 ...this.deviceConfig,
                 components: {
-                    // Provide one climate entity for the controls that belong
-                    // together.  The individual controls below remain
-                    // available for dashboards and automations that use them.
-                    climate: {
-                        platform: 'climate',
-                        unique_id: '$deviceid-climate',
+                    humidifier: {
+                        platform: 'humidifier',
+                        device_class: 'dehumidifier',
+                        unique_id: '$deviceid-humidifier',
                         name: null,
-                        modes: ['off', 'dry'],
-                        mode_state_topic: '$this/climate_mode',
-                        mode_command_topic: '$this/climate_mode/set',
-                        action_topic: '$this/climate_action',
-                        power_command_topic: '$this/power/set',
+                        state_topic: '$this/power',
+                        command_topic: '$this/power/set',
+                        action_topic: '$this/humidifier_action',
                         payload_on: 'ON',
                         payload_off: 'OFF',
-                        fan_modes: Object.values(fanSpeeds),
-                        fan_mode_state_topic: '$this/fan_speed',
-                        fan_mode_command_topic: '$this/fan_speed/set',
+                        modes: Object.values(modes),
+                        mode_state_topic: '$this/operating_mode',
+                        mode_command_topic: '$this/operating_mode/set',
                         current_humidity_topic: '$this/current_humidity',
                         target_humidity_state_topic: '$this/target_humidity',
                         target_humidity_command_topic: '$this/target_humidity/set',
@@ -75,7 +71,7 @@ export default class Device extends TLVDevice {
                     power: {
                         platform: 'switch',
                         unique_id: '$deviceid-power',
-                        name: 'Power',
+                        name: '전원',
                         state_topic: '$this/power',
                         command_topic: '$this/power/set',
                         payload_on: 'ON',
@@ -84,7 +80,8 @@ export default class Device extends TLVDevice {
                     operating_mode: {
                         platform: 'select',
                         unique_id: '$deviceid-operating_mode',
-                        name: 'Operating mode',
+                        name: '운전 모드',
+                        entity_category: 'config',
                         state_topic: '$this/operating_mode',
                         command_topic: '$this/operating_mode/set',
                         options: Object.values(modes),
@@ -92,7 +89,7 @@ export default class Device extends TLVDevice {
                     fan_speed: {
                         platform: 'select',
                         unique_id: '$deviceid-fan_speed',
-                        name: 'Fan speed',
+                        name: '팬 속도',
                         state_topic: '$this/fan_speed',
                         command_topic: '$this/fan_speed/set',
                         options: Object.values(fanSpeeds),
@@ -101,7 +98,7 @@ export default class Device extends TLVDevice {
                         platform: 'number',
                         device_class: 'humidity',
                         unique_id: '$deviceid-target_humidity',
-                        name: 'Target humidity',
+                        name: '목표 습도',
                         state_topic: '$this/target_humidity',
                         command_topic: '$this/target_humidity/set',
                         unit_of_measurement: '%',
@@ -114,14 +111,15 @@ export default class Device extends TLVDevice {
                         device_class: 'humidity',
                         state_class: 'measurement',
                         unique_id: '$deviceid-current_humidity',
-                        name: 'Current humidity',
+                        name: '현재 습도',
                         state_topic: '$this/current_humidity',
                         unit_of_measurement: '%',
                     },
                     off_timer: {
                         platform: 'number',
                         unique_id: '$deviceid-off_timer',
-                        name: 'Off timer',
+                        name: '꺼짐 예약',
+                        entity_category: 'config',
                         state_topic: '$this/off_timer',
                         command_topic: '$this/off_timer/set',
                         unit_of_measurement: 'min',
@@ -132,34 +130,37 @@ export default class Device extends TLVDevice {
                     humidity_sensor_mode: {
                         platform: 'select',
                         unique_id: '$deviceid-humidity_sensor_mode',
-                        name: 'Humidity sensor mode',
+                        name: '습도 센서 검침',
+                        entity_category: 'config',
                         state_topic: '$this/humidity_sensor_mode',
                         command_topic: '$this/humidity_sensor_mode/set',
-                        options: ['ALWAYS', 'DURING_OPERATION'],
+                        options: ['항상 검침', '운전 중에만 검침'],
                     },
                     child_lock: {
                         platform: 'binary_sensor',
                         unique_id: '$deviceid-child_lock',
-                        name: 'Child lock',
+                        name: '차일드락',
                         icon: 'mdi:lock',
                         state_topic: '$this/child_lock',
                         payload_on: 'ON',
                         payload_off: 'OFF',
+                        entity_category: 'diagnostic',
                     },
                     water_tank_full: {
                         platform: 'binary_sensor',
                         device_class: 'problem',
                         unique_id: '$deviceid-water_tank_full',
-                        name: 'Water tank full',
+                        name: '물통 가득 참',
                         icon: 'mdi:water-alert',
                         state_topic: '$this/water_tank_full',
                         payload_on: 'ON',
                         payload_off: 'OFF',
+                        entity_category: 'diagnostic',
                     },
-                    uvnano: switchConfig('uvnano', 'UVnano', 'mdi:air-purifier'),
-                    lighting: switchConfig('lighting', 'Lighting', 'mdi:lightbulb'),
-                    display_light: switchConfig('display_light', 'Display light', 'mdi:brightness-6'),
-                    button_sound: switchConfig('button_sound', 'Button sound', 'mdi:volume-high'),
+                    uvnano: switchConfig('uvnano', 'UVnano', 'mdi:air-purifier', 'config'),
+                    lighting: switchConfig('lighting', '라이팅', 'mdi:lightbulb', 'config'),
+                    display_light: switchConfig('display_light', '표시부 조명', 'mdi:brightness-6', 'config'),
+                    button_sound: switchConfig('button_sound', '버튼음', 'mdi:volume-high', 'config'),
                 },
             }),
         )
@@ -237,15 +238,14 @@ export default class Device extends TLVDevice {
         if (id === fields.power) {
             const on = value !== 0
             this.HA.publishProperty(this.id, 'power', on ? 'ON' : 'OFF')
-            this.HA.publishProperty(this.id, 'climate_mode', on ? 'dry' : 'off')
-            this.HA.publishProperty(this.id, 'climate_action', on ? 'drying' : 'off')
+            this.HA.publishProperty(this.id, 'humidifier_action', on ? 'drying' : 'off')
         }
         if (id === fields.mode && modes[value]) this.HA.publishProperty(this.id, 'operating_mode', modes[value])
         if (id === fields.fanSpeed && fanSpeeds[value]) this.HA.publishProperty(this.id, 'fan_speed', fanSpeeds[value])
         if (id === fields.targetHumidity) this.HA.publishProperty(this.id, 'target_humidity', value)
         if (id === fields.offTimer) this.HA.publishProperty(this.id, 'off_timer', value)
         if (id === fields.humiditySensorMode)
-            this.HA.publishProperty(this.id, 'humidity_sensor_mode', value ? 'ALWAYS' : 'DURING_OPERATION')
+            this.HA.publishProperty(this.id, 'humidity_sensor_mode', value ? '항상 검침' : '운전 중에만 검침')
         if (id === fields.uVnano) this.HA.publishProperty(this.id, 'uvnano', value ? 'ON' : 'OFF')
         if (id === fields.lighting) this.HA.publishProperty(this.id, 'lighting', value ? 'ON' : 'OFF')
         if (id === fields.displayLight) this.HA.publishProperty(this.id, 'display_light', value ? 'OFF' : 'ON')
@@ -255,12 +255,6 @@ export default class Device extends TLVDevice {
     setProperty(prop: string, value: string) {
         const bool = (id: number) => this.write(id, value === 'ON' ? 1 : 0)
         if (prop === 'power') return bool(fields.power)
-        // "dry" only changes the running state. It deliberately preserves the
-        // appliance's selected detailed mode (smart, rapid, laundry, ...).
-        if (prop === 'climate_mode') {
-            if (value === 'off') return this.write(fields.power, 0)
-            if (value === 'dry') return this.write(fields.power, 1)
-        }
         if (prop === 'uvnano') return bool(fields.uVnano)
         if (prop === 'lighting') return bool(fields.lighting)
         if (prop === 'display_light') return this.write(fields.displayLight, value === 'ON' ? 0 : 1)
@@ -269,7 +263,7 @@ export default class Device extends TLVDevice {
         if (prop === 'fan_speed' && fanSpeedValues[value] != null) return this.write(fields.fanSpeed, fanSpeedValues[value])
         if (prop === 'target_humidity') return this.write(fields.targetHumidity, Number(value))
         if (prop === 'off_timer') return this.write(fields.offTimer, Number(value))
-        if (prop === 'humidity_sensor_mode') return this.writeHumiditySensorMode(value === 'ALWAYS' ? 1 : 0)
+        if (prop === 'humidity_sensor_mode') return this.writeHumiditySensorMode(value === '항상 검침' ? 1 : 0)
         console.warn(`Attempting to set unsupported dehumidifier property ${prop}`)
     }
 
@@ -306,7 +300,7 @@ export default class Device extends TLVDevice {
     }
 }
 
-function switchConfig(id: string, name: string, icon: string) {
+function switchConfig(id: string, name: string, icon: string, entityCategory: 'config' | 'diagnostic' | undefined = undefined) {
     return {
         platform: 'switch',
         unique_id: `$deviceid-${id}`,
@@ -316,5 +310,6 @@ function switchConfig(id: string, name: string, icon: string) {
         command_topic: `$this/${id}/set`,
         payload_on: 'ON',
         payload_off: 'OFF',
+        ...(entityCategory ? { entity_category: entityCategory } : {}),
     }
 }

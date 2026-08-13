@@ -8,6 +8,10 @@ import { freezerRange, fridgeRange } from './fridge_common'
 
 export default class Device extends AABBDevice {
     readonly deviceConfig: DeviceDiscovery
+    private nightGlare: { mode: string; startHour?: number; startMinute?: number; endHour?: number; endMinute?: number; brightness?: number } = {
+        mode: '사용 안 함',
+    }
+    private nightQuiet: { mode: string; startHour?: number; startMinute?: number; duration?: number } = { mode: '사용 안 함' }
 
     constructor(HA: Connection, thinq: Thinq2Device, meta: Metadata) {
         super(HA, thinq)
@@ -93,6 +97,18 @@ export default class Device extends AABBDevice {
                         state_topic: '$this/night_quiet',
                         name: '야간 조용히',
                     },
+                    night_glare_mode: selectConfig('night_glare_mode', '야간 눈부심 방지 모드', ['사용 안 함', '일몰에서 일출까지', '시간 설정']),
+                    night_glare_start_hour: numberConfig('night_glare_start_hour', '야간 눈부심 시작 시', 0, 23),
+                    night_glare_start_minute: numberConfig('night_glare_start_minute', '야간 눈부심 시작 분', 0, 59),
+                    night_glare_end_hour: numberConfig('night_glare_end_hour', '야간 눈부심 종료 시', 0, 23),
+                    night_glare_end_minute: numberConfig('night_glare_end_minute', '야간 눈부심 종료 분', 0, 59),
+                    night_glare_brightness: numberConfig('night_glare_brightness', '야간 눈부심 조명 밝기', 10, 90, 10, '%'),
+                    night_glare_apply: buttonConfig('night_glare_apply', '야간 눈부심 방지 적용', 'mdi:check-circle'),
+                    night_quiet_mode: selectConfig('night_quiet_mode', '야간 조용히 모드', ['사용 안 함', '시간 설정']),
+                    night_quiet_start_hour: numberConfig('night_quiet_start_hour', '야간 조용히 시작 시', 0, 23),
+                    night_quiet_start_minute: numberConfig('night_quiet_start_minute', '야간 조용히 시작 분', 0, 59),
+                    night_quiet_duration: numberConfig('night_quiet_duration', '야간 조용히 지속 시간', 1, 9, 1, 'h'),
+                    night_quiet_apply: buttonConfig('night_quiet_apply', '야간 조용히 적용', 'mdi:check-circle'),
                     craft_ice: {
                         platform: 'select',
                         icon: 'mdi:ice-pop',
@@ -178,9 +194,15 @@ export default class Device extends AABBDevice {
 
     private publishAdvancedSettings(status: Buffer) {
         const glareModes = ['사용 안 함', '알 수 없음', '일몰에서 일출까지', '시간 설정']
+        const glareMode = glareModes[status[30]] || '알 수 없음'
+        const quietMode = status[31] === 3 ? '시간 설정' : '사용 안 함'
         this.publishProperty('smart_care', status[17] === 1 ? 'ON' : 'OFF')
-        this.publishProperty('night_glare_prevention', glareModes[status[30]] || '알 수 없음')
-        this.publishProperty('night_quiet', status[31] === 3 ? '시간 설정' : '사용 안 함')
+        this.publishProperty('night_glare_prevention', glareMode)
+        this.publishProperty('night_quiet', quietMode)
+        this.nightGlare.mode = glareMode
+        this.nightQuiet.mode = quietMode
+        this.publishProperty('night_glare_mode', glareMode)
+        this.publishProperty('night_quiet_mode', quietMode)
     }
 
     setProperty(prop: string, mqttValue: string) {
@@ -190,7 +212,21 @@ export default class Device extends AABBDevice {
             'hex',
         )
 
-        if (prop === 'fridge_setpoint') {
+        if (prop === 'night_glare_mode') {
+            this.nightGlare.mode = mqttValue
+            return this.publishProperty(prop, mqttValue)
+        } else if (prop === 'night_quiet_mode') {
+            this.nightQuiet.mode = mqttValue
+            return this.publishProperty(prop, mqttValue)
+        } else if (prop.startsWith('night_glare_') && prop !== 'night_glare_apply') {
+            return this.setNightGlareValue(prop, mqttValue)
+        } else if (prop.startsWith('night_quiet_') && prop !== 'night_quiet_apply') {
+            return this.setNightQuietValue(prop, mqttValue)
+        } else if (prop === 'night_glare_apply') {
+            return this.applyNightGlare()
+        } else if (prop === 'night_quiet_apply') {
+            return this.applyNightQuiet()
+        } else if (prop === 'fridge_setpoint') {
             baseMessage[2 + 1] = 8 - Number(mqttValue)
             baseMessage[2 + 8] = 1 // 온도 제어시 활성화 플래그
             this.send(baseMessage)
@@ -227,4 +263,66 @@ export default class Device extends AABBDevice {
             console.warn(`Unknown property ${prop}`)
         }
     }
+
+    private setNightGlareValue(prop: string, value: string) {
+        const number = Number(value)
+        if (!Number.isInteger(number)) return
+        const key = prop.replace('night_glare_', '') as keyof typeof this.nightGlare
+        if (key === 'start_hour' || key === 'start_minute' || key === 'end_hour' || key === 'end_minute' || key === 'brightness') {
+            const mappedKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase()) as 'startHour' | 'startMinute' | 'endHour' | 'endMinute' | 'brightness'
+            this.nightGlare[mappedKey] = number
+            this.publishProperty(prop, number)
+        }
+    }
+
+    private setNightQuietValue(prop: string, value: string) {
+        const number = Number(value)
+        if (!Number.isInteger(number)) return
+        const key = prop.replace('night_quiet_', '').replace(/_([a-z])/g, (_, letter) => letter.toUpperCase()) as 'startHour' | 'startMinute' | 'duration'
+        if (key === 'startHour' || key === 'startMinute' || key === 'duration') {
+            this.nightQuiet[key] = number
+            this.publishProperty(prop, number)
+        }
+    }
+
+    private applyNightGlare() {
+        if (this.nightGlare.mode === '사용 안 함') return this.send(Buffer.from('F010020000000000000000000000000000', 'hex'))
+        if (this.nightGlare.mode === '일몰에서 일출까지') {
+            console.warn('Night glare sunrise mode needs the refrigerator-provided daily sunrise/sunset values')
+            return
+        }
+        const { startHour, startMinute, endHour, endMinute, brightness } = this.nightGlare
+        if (![startHour, startMinute, endHour, endMinute, brightness].every(Number.isInteger)) {
+            console.warn('Night glare time settings are incomplete')
+            return
+        }
+        this.send(Buffer.from([0xf0, 0x10, 0x02, 0x02, 0x1a, 0x08, 0x0d, toUtcHour(startHour!), startMinute!, 0, 0x1a, 0x08, 0x0e, toUtcHour(endHour!), endMinute!, 0, 0, brightness!]))
+    }
+
+    private applyNightQuiet() {
+        if (this.nightQuiet.mode === '사용 안 함') return this.send(Buffer.from('F010030000000000000000000000000000', 'hex'))
+        const { startHour, startMinute, duration } = this.nightQuiet
+        if (![startHour, startMinute, duration].every(Number.isInteger)) {
+            console.warn('Night quiet settings are incomplete')
+            return
+        }
+        const endHour = (startHour! + duration!) % 24
+        this.send(Buffer.from([0xf0, 0x10, 0x03, 0x02, 0x1a, 0x08, 0x0d, toUtcHour(startHour!), startMinute!, 0, 0x1a, 0x08, 0x0d, toUtcHour(endHour), startMinute!, 0]))
+    }
+}
+
+function selectConfig(id: string, name: string, options: string[]) {
+    return { platform: 'select', unique_id: `$deviceid-${id}`, name, entity_category: 'config', state_topic: `$this/${id}`, command_topic: `$this/${id}/set`, options }
+}
+
+function numberConfig(id: string, name: string, min: number, max: number, step = 1, unit?: string) {
+    return { platform: 'number', unique_id: `$deviceid-${id}`, name, entity_category: 'config', state_topic: `$this/${id}`, command_topic: `$this/${id}/set`, min, max, step, ...(unit ? { unit_of_measurement: unit } : {}) }
+}
+
+function buttonConfig(id: string, name: string, icon: string) {
+    return { platform: 'button', unique_id: `$deviceid-${id}`, name, icon, entity_category: 'config', command_topic: `$this/${id}/set` }
+}
+
+function toUtcHour(localHour: number) {
+    return (localHour + 15) % 24
 }

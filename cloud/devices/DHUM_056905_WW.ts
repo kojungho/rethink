@@ -5,6 +5,7 @@ import { DeviceDiscovery, type Connection } from '../homeassistant'
 import { type Metadata } from '../thinq'
 import { allowExtendedType } from '@/util/casting'
 import * as TLV from '@/util/tlv'
+import crc16 from '@/util/crc16'
 
 const fields = {
     power: 0x1f7,
@@ -16,7 +17,10 @@ const fields = {
     targetHumidity: 0x253,
     uVnano: 0x2a2,
     buttonSound: 0x3a0,
+    humiditySensorMode: 0x337,
 } as const
+
+const humiditySensorCommand = 0x50c
 
 const modes: Record<number, string> = {
     0x11: 'SMART_DEHUMIDIFICATION',
@@ -125,6 +129,14 @@ export default class Device extends TLVDevice {
                         max: 480,
                         step: 60,
                     },
+                    humidity_sensor_mode: {
+                        platform: 'select',
+                        unique_id: '$deviceid-humidity_sensor_mode',
+                        name: 'Humidity sensor mode',
+                        state_topic: '$this/humidity_sensor_mode',
+                        command_topic: '$this/humidity_sensor_mode/set',
+                        options: ['ALWAYS', 'DURING_OPERATION'],
+                    },
                     child_lock: {
                         platform: 'binary_sensor',
                         unique_id: '$deviceid-child_lock',
@@ -232,6 +244,8 @@ export default class Device extends TLVDevice {
         if (id === fields.fanSpeed && fanSpeeds[value]) this.HA.publishProperty(this.id, 'fan_speed', fanSpeeds[value])
         if (id === fields.targetHumidity) this.HA.publishProperty(this.id, 'target_humidity', value)
         if (id === fields.offTimer) this.HA.publishProperty(this.id, 'off_timer', value)
+        if (id === fields.humiditySensorMode)
+            this.HA.publishProperty(this.id, 'humidity_sensor_mode', value ? 'ALWAYS' : 'DURING_OPERATION')
         if (id === fields.uVnano) this.HA.publishProperty(this.id, 'uvnano', value ? 'ON' : 'OFF')
         if (id === fields.lighting) this.HA.publishProperty(this.id, 'lighting', value ? 'ON' : 'OFF')
         if (id === fields.displayLight) this.HA.publishProperty(this.id, 'display_light', value ? 'OFF' : 'ON')
@@ -255,6 +269,7 @@ export default class Device extends TLVDevice {
         if (prop === 'fan_speed' && fanSpeedValues[value] != null) return this.write(fields.fanSpeed, fanSpeedValues[value])
         if (prop === 'target_humidity') return this.write(fields.targetHumidity, Number(value))
         if (prop === 'off_timer') return this.write(fields.offTimer, Number(value))
+        if (prop === 'humidity_sensor_mode') return this.writeHumiditySensorMode(value === 'ALWAYS' ? 1 : 0)
         console.warn(`Attempting to set unsupported dehumidifier property ${prop}`)
     }
 
@@ -262,6 +277,32 @@ export default class Device extends TLVDevice {
         if (!Number.isInteger(value) || value < 0) return
         this.raw_clip_state[id] = value
         this.send([1, 1, 2, 1, 1], [{ t: id, v: value }])
+    }
+
+    private writeHumiditySensorMode(value: number) {
+        // This setting uses the model's FD private command, not the normal TLV
+        // setter. Captures confirm 0x50c: 1 = always, 0 = only while operating.
+        const message = [
+            0x01,
+            0x02,
+            0x04,
+            0x00,
+            0x00,
+            0x00,
+            0x65,
+            0xfd,
+            0x01,
+            0x00,
+            humiditySensorCommand >> 8,
+            humiditySensorCommand & 0xff,
+            0x00,
+            0x00,
+            0x00,
+            value,
+        ]
+        const checksum = crc16(message.slice(2))
+        message.push(checksum >> 8, checksum & 0xff)
+        this.thinq.send_packet(Buffer.from(message))
     }
 }
 

@@ -12,15 +12,6 @@ export default class Device extends AABBDevice {
     constructor(HA: Connection, thinq: Thinq2Device, meta: Metadata) {
         super(HA, thinq)
         this.deviceConfig = HADevice.config(meta, { name: 'LG Smart Fridge' })
-        // The first night-setting implementation used MQTT select discovery.
-        // It has no safe command mapping yet, so replace it with a read-only
-        // sensor after explicitly removing that previous component type.
-        this.HA.publishConfig(this.id, {
-            ...this.deviceConfig,
-            components: {
-                night_setting_status: { platform: 'select' } as unknown as DeviceDiscovery['components'][string],
-            },
-        })
         this.setConfig(
             allowExtendedType({
                 ...this.deviceConfig,
@@ -80,11 +71,11 @@ export default class Device extends AABBDevice {
                         payload_on: 'ON',
                         payload_off: 'OFF',
                     },
-                    night_setting_status: {
+                    night_setting: {
                         platform: 'sensor',
                         icon: 'mdi:weather-night',
-                        unique_id: '$deviceid-night_setting_status',
-                        state_topic: '$this/night_setting_status',
+                        unique_id: '$deviceid-night_setting',
+                        state_topic: '$this/night_setting',
                         name: '야간 설정 상태',
                     },
                     craft_ice: {
@@ -169,7 +160,7 @@ export default class Device extends AABBDevice {
         this.publishProperty('freezer_setpoint', setpointFreezer)
         this.publishProperty('express_freeze', expressFreezeOn ? 'ON' : 'OFF')
         this.publishProperty('smart_care', smartCareOn ? 'ON' : 'OFF')
-        this.publishProperty('night_setting_status', nightSettingStatus)
+        this.publishProperty('night_setting', nightSettingStatus)
         this.publishProperty('craft_ice', craftIceMode)
         this.publishProperty('dispenser_mode', dispenserMode)
         this.publishProperty('button_sound', buttonSoundOn ? 'ON' : 'OFF')

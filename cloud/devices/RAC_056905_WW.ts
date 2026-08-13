@@ -422,22 +422,28 @@ export default class Device extends TLVDevice {
         })
 
         if (this.raw_clip_state[0x2cd] & 4) {
-            config['components']['vertical_swing_mode'] = {
-                platform: 'select',
-                unique_id: '$deviceid-vertical_swing_mode',
-                name: '상하 회전 모드',
-                icon: 'mdi:arrow-up-down',
-                options: ['1(상)', '2', '3', '4', '5', '6(하)', '집중회전(상단)', '집중회전(중간)', '집중회전(하단)', '상하회전', '정지'],
-            }
+            config['components']['climate']['swing_modes'] = [
+                '1(상)',
+                '2',
+                '3',
+                '4',
+                '5',
+                '6(하)',
+                '상단집중',
+                '중간집중',
+                '하단집중',
+                '상하회전',
+                '정지',
+            ]
             this.addField(config, {
                 id: 0x321,
-                name: '',
-                comp: 'vertical_swing_mode',
+                name: 'swing_mode',
+                comp: 'climate',
                 read_xform: (raw) => {
                     const modes2ha = ['정지', '1(상)', '2', '3', '4', '5', '6(하)']
-                    modes2ha[14] = '집중회전(상단)'
-                    modes2ha[25] = '집중회전(중간)'
-                    modes2ha[36] = '집중회전(하단)'
+                    modes2ha[14] = '상단집중'
+                    modes2ha[25] = '중간집중'
+                    modes2ha[36] = '하단집중'
                     modes2ha[100] = '상하회전'
                     return modes2ha[raw]
                 },
@@ -450,9 +456,9 @@ export default class Device extends TLVDevice {
                         '4': 4,
                         '5': 5,
                         '6(하)': 6,
-                        '집중회전(상단)': 14,
-                        '집중회전(중간)': 25,
-                        '집중회전(하단)': 36,
+                        '상단집중': 14,
+                        '중간집중': 25,
+                        '하단집중': 36,
                         '상하회전': 100,
                     }
                     return modes2clip[val]
@@ -461,17 +467,21 @@ export default class Device extends TLVDevice {
         }
 
         if (this.raw_clip_state[0x2cd] & 8) {
-            config['components']['horizontal_swing_mode'] = {
-                platform: 'select',
-                unique_id: '$deviceid-horizontal_swing_mode',
-                name: '수평 회전 모드',
-                icon: 'mdi:arrow-left-right',
-                options: ['1(좌)', '2', '3', '4', '5(우)', '좌중회전', '중우회전', '좌우회전', '정지'],
-            }
+            config['components']['climate']['swing_horizontal_modes'] = [
+                '1(좌)',
+                '2',
+                '3',
+                '4',
+                '5(우)',
+                '좌중회전',
+                '중우회전',
+                '좌우회전',
+                '정지',
+            ]
             this.addField(config, {
                 id: 0x322,
-                name: '',
-                comp: 'horizontal_swing_mode',
+                name: 'swing_horizontal_mode',
+                comp: 'climate',
                 read_xform: (raw) => {
                     const modes2ha = ['정지', '1(좌)', '2', '3', '4', '5(우)']
                     modes2ha[13] = '좌중회전'
@@ -783,6 +793,16 @@ export default class Device extends TLVDevice {
             })
         }
 
+        // These were separate select entities in the previous release.  An
+        // empty discovery payload removes them before Climate receives the
+        // integrated vertical and horizontal swing controls.
+        this.HA.publishConfig(this.id, {
+            ...config,
+            components: {
+                vertical_swing_mode: { platform: 'select' } as unknown as DeviceDiscovery['components'][string],
+                horizontal_swing_mode: { platform: 'select' } as unknown as DeviceDiscovery['components'][string],
+            },
+        })
         this.setConfig(config)
 
         if (this.filterLifeTime) {
@@ -848,7 +868,6 @@ export default class Device extends TLVDevice {
             unique_id: '$deviceid-' + name,
             name: descFull,
             icon: icon,
-            entity_category: 'config',
             optimistic: true,
         }
         config['components'][name] = comp
@@ -1003,7 +1022,6 @@ export default class Device extends TLVDevice {
             unique_id: '$deviceid-' + name,
             name: desc,
             icon: icon,
-            entity_category: 'config',
             optimistic: true,
         }
         config['components'][name] = comp

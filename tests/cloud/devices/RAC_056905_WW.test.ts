@@ -98,23 +98,23 @@ describe(MODEL_ID, () => {
         // Conversely, airclean (0x2CC bit 0x1) is not unlocked.
         assert.ok(!components.airclean, 'airclean off (0x2CC bit 0x1 unset)')
 
-        // The appliance exposes direction controls as separately named selects.
+        // Direction controls are integrated into the climate entity.
         assert.deepEqual(components.climate.modes, ['off', 'cool', 'dry', 'fan_only'])
         assert.deepEqual(components.climate.preset_modes, ['공기 청정'])
-        assert.deepEqual(components.vertical_swing_mode.options, [
+        assert.deepEqual(components.climate.swing_modes, [
             '1(상)',
             '2',
             '3',
             '4',
             '5',
             '6(하)',
-            '집중회전(상단)',
-            '집중회전(중간)',
-            '집중회전(하단)',
+            '상단집중',
+            '중간집중',
+            '하단집중',
             '상하회전',
             '정지',
         ])
-        assert.deepEqual(components.horizontal_swing_mode.options, [
+        assert.deepEqual(components.climate.swing_horizontal_modes, [
             '1(좌)',
             '2',
             '3',

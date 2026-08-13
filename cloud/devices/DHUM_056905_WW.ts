@@ -192,6 +192,23 @@ export default class Device extends TLVDevice {
     }
 
     processData(buf: Buffer) {
+        // The private 0x50c command acknowledges the selected humidity-sensor
+        // mode in an FD response. Parse it as well as the regular status
+        // frame, so a user change is reflected immediately.
+        if (
+            buf.length >= 18 &&
+            buf[0] === 0x02 &&
+            buf[1] === 0xff &&
+            buf[2] === 0x04 &&
+            buf[6] === 0x65 &&
+            buf[7] === 0xfd &&
+            buf[8] === 0x03 &&
+            buf[10] === humiditySensorCommand >> 8 &&
+            buf[11] === (humiditySensorCommand & 0xff)
+        ) {
+            this.HA.publishProperty(this.id, 'humidity_sensor_mode', buf[12] ? '항상 검침' : '운전 중에만 검침')
+            return
+        }
         // This model reports its current configuration in an A7 02 packet.
         // Its payload is the normal compact TLV sequence, but the transport
         // header differs from the generic TLVDevice response header.

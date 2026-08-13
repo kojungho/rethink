@@ -868,7 +868,6 @@ export default class Device extends TLVDevice {
             unique_id: '$deviceid-' + name,
             name: descFull,
             icon: icon,
-            optimistic: true,
         }
         config['components'][name] = comp
 
@@ -1022,7 +1021,6 @@ export default class Device extends TLVDevice {
             unique_id: '$deviceid-' + name,
             name: desc,
             icon: icon,
-            optimistic: true,
         }
         config['components'][name] = comp
 

@@ -827,6 +827,8 @@ export default class Device extends TLVDevice {
             })
         }
 
+        this.extendConfig(config)
+
         // These were separate select entities in the previous release.  An
         // empty discovery payload removes them before Climate receives the
         // integrated vertical and horizontal swing controls.
@@ -857,6 +859,10 @@ export default class Device extends TLVDevice {
         }
 
         this.query()
+    }
+
+    protected extendConfig(config: DeviceDiscovery) {
+        // Model-specific subclasses may add discovery components and fields.
     }
 
     addTimerField(config: DeviceDiscovery, id: number, name: string, desc: string, icon: string, max: number) {

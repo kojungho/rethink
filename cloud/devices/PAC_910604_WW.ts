@@ -4,7 +4,13 @@ import { DeviceDiscovery, type Connection } from '../homeassistant'
 import { type Metadata } from '../thinq'
 import * as TLV from '@/util/tlv'
 
-const fields = { power: 0x1f7, mode: 0x1f9, fanSpeed: 0x1fa, currentTemperature: 0x1fd, targetTemperature: 0x1fe } as const
+const fields = {
+    power: 0x1f7,
+    mode: 0x1f9,
+    fanSpeed: 0x1fa,
+    currentTemperature: 0x1fd,
+    targetTemperature: 0x1fe,
+} as const
 
 /** LG Korean stand air conditioner using A7 TLV notifications and A8 fixed status frames. */
 export default class Device extends RACDevice {
@@ -31,22 +37,39 @@ export default class Device extends RACDevice {
 
     protected extendConfig(config: DeviceDiscovery) {
         const sensors = {
-            humidity: { name: '현재 습도', device_class: 'humidity', unit_of_measurement: '%', icon: 'mdi:water-percent' },
+            humidity: {
+                name: '현재 습도',
+                device_class: 'humidity',
+                unit_of_measurement: '%',
+                icon: 'mdi:water-percent',
+            },
             pm2_5: { name: 'PM2.5', device_class: 'pm25', unit_of_measurement: 'μg/m³', icon: 'mdi:molecule' },
             pm10: { name: 'PM10', device_class: 'pm10', unit_of_measurement: 'μg/m³', icon: 'mdi:molecule' },
             filter_remaining: { name: '필터 잔여량', unit_of_measurement: '%', icon: 'mdi:air-filter' },
         } as const
         for (const [id, sensor] of Object.entries(sensors)) {
             config.components[id] = {
-                platform: 'sensor', unique_id: `$deviceid-${id}`, state_topic: `$this/${id}`,
-                state_class: 'measurement', entity_category: id === 'filter_remaining' ? 'diagnostic' : undefined, ...sensor,
-            }
+                platform: 'sensor',
+                unique_id: `$deviceid-${id}`,
+                state_topic: `$this/${id}`,
+                state_class: 'measurement',
+                entity_category: id === 'filter_remaining' ? 'diagnostic' : undefined,
+                ...sensor,
+            } as unknown as DeviceDiscovery['components'][string]
         }
     }
 
     processData(buf: Buffer) {
-        if (buf.length >= 13 && buf[0] === 0 && buf[1] === 0 && buf[2] === 4 && buf[6] === 0xa7 &&
-            buf[7] === 2 && buf[8] === 4 && buf[10] === buf.length - 13) {
+        if (
+            buf.length >= 13 &&
+            buf[0] === 0 &&
+            buf[1] === 0 &&
+            buf[2] === 4 &&
+            buf[6] === 0xa7 &&
+            buf[7] === 2 &&
+            buf[8] === 4 &&
+            buf[10] === buf.length - 13
+        ) {
             this.processTLV(TLV.parse(buf.subarray(11, buf.length - 2)))
             return
         }
@@ -87,10 +110,14 @@ export default class Device extends RACDevice {
         }
         if (prop === 'climate-mode' && value === 'fan_only') {
             this.raw_clip_state[fields.mode] = 5
-            this.send([1, 1, 2, 1, 1], [
-                { t: fields.mode, v: 5 }, { t: fields.fanSpeed, v: this.raw_clip_state[fields.fanSpeed] },
-                { t: fields.targetTemperature, v: this.raw_clip_state[fields.targetTemperature] },
-            ])
+            this.send(
+                [1, 1, 2, 1, 1],
+                [
+                    { t: fields.mode, v: 5 },
+                    { t: fields.fanSpeed, v: this.raw_clip_state[fields.fanSpeed] },
+                    { t: fields.targetTemperature, v: this.raw_clip_state[fields.targetTemperature] },
+                ],
+            )
             return
         }
         super.setProperty(prop, value)

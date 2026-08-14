@@ -47,6 +47,25 @@ describe('PAC_910604_WW', () => {
         ])
             assert.ok(components[id])
         assert.deepEqual((components.ai_dry as { options: string[] }).options, ['1단', '2단', '3단', '4단', '5단'])
+        assert.deepEqual((components.display_light as { options: string[] }).options, [
+            '꺼짐',
+            '20%',
+            '40%',
+            '60%',
+            '80%',
+            '100%',
+        ])
+        assert.deepEqual((components.button_sound as { options: string[] }).options, [
+            '꺼짐',
+            '20%',
+            '40%',
+            '60%',
+            '80%',
+            '100%',
+        ])
+        const climate = components.climate as unknown as Record<string, unknown>
+        assert.equal(climate.swing_modes, undefined)
+        assert.equal(climate.swing_horizontal_modes, undefined)
         dev.drop()
     })
     test('decodes A8 sensors and A7 temperature', () => {
@@ -72,6 +91,8 @@ describe('PAC_910604_WW', () => {
         assert.match(thinq.outbox.at(-1)!.toString('hex'), /8d81/i)
         ha.setProperty(DEVICE_ID, 'air_quality_sensor', 'command', '항상')
         assert.match(thinq.outbox.at(-1)!.toString('hex'), /65fd0100050c00000001/i)
+        ha.setProperty(DEVICE_ID, 'climate', 'mode_command', 'fan_only')
+        assert.match(thinq.outbox.at(-1)!.toString('hex'), /7dc17e45/i)
         dev.drop()
     })
 })

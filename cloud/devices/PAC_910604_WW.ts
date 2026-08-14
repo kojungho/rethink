@@ -3,6 +3,7 @@ import { Device as Thinq2Device } from '../thinq2/device'
 import { DeviceDiscovery, type Connection } from '../homeassistant'
 import { type Metadata } from '../thinq'
 import * as TLV from '@/util/tlv'
+import HADevice from './base'
 
 const fields = {
     power: 0x1f7,
@@ -36,6 +37,15 @@ export default class Device extends RACDevice {
         for (const id of [0x2f9, 0x2fa, 0x32c, 0x332]) this.raw_clip_state[id] = 100
         this.raw_clip_state[0x331] = 0
         this.initialValuesReceived = true
+        // Remove the legacy RAC switch discovery before replacing the same
+        // component keys with PAC brightness selects.
+        this.HA.publishConfig(this.id, {
+            ...HADevice.config(meta, { name: 'LG Air Conditioner' }),
+            components: {
+                display_light: { platform: 'switch' } as unknown as DeviceDiscovery['components'][string],
+                button_sound: { platform: 'switch' } as unknown as DeviceDiscovery['components'][string],
+            },
+        })
         this.initMakeSetConfig()
     }
 
@@ -43,6 +53,19 @@ export default class Device extends RACDevice {
     query() {}
 
     protected extendConfig(config: DeviceDiscovery) {
+        // PAC exposes a five-way airflow direction selector instead of the
+        // RAC vertical/horizontal swing controls.
+        const climate = config.components.climate as unknown as Record<string, unknown>
+        for (const key of [
+            'swing_modes',
+            'swing_mode_state_topic',
+            'swing_mode_command_topic',
+            'swing_horizontal_modes',
+            'swing_horizontal_mode_state_topic',
+            'swing_horizontal_mode_command_topic',
+        ])
+            delete climate[key]
+
         const sensors = {
             humidity: {
                 name: '현재 습도',
@@ -110,7 +133,7 @@ export default class Device extends RACDevice {
             },
         })
 
-        this.addConfigSwitchField(config, 0x29d, 'quiet', '저소음', 'mdi:volume-low')
+        this.addConfigSwitchField(config, 0x29d, 'quiet', '냉방 저소음', 'mdi:volume-low')
         this.addConfigSwitchField(config, 0x1be, 'space_airflow', '공간맞춤 바람', 'mdi:air-filter')
         this.addConfigSwitchField(config, 0x3a9, 'button_lock', '버튼 잠금', 'mdi:lock')
 
@@ -134,8 +157,8 @@ export default class Device extends RACDevice {
         addSelect(0x2a8, 'one_side_airflow', '한쪽 바람', ['해제', '왼쪽', '오른쪽'], [0, 1, 2])
         addSelect(0x3aa, 'lighting_mode', '라이팅 모드', ['종합청정도', '운전상태'], [1, 10])
         addSelect(0x3ac, 'lighting_brightness', '라이팅 밝기', ['20%', '40%', '60%', '80%', '100%'], [20, 40, 60, 80, 100])
-        addSelect(0x21f, 'display_light', '제품 화면 밝기', ['꺼짐', '20%', '40%', '60%', '100%'], [100, 120, 140, 160, 200])
-        addSelect(0x3a0, 'button_sound', '제품 소리 크기', ['꺼짐', '20%', '40%', '60%', '100%'], [100, 120, 140, 160, 200])
+        addSelect(0x21f, 'display_light', '제품 화면 밝기', ['꺼짐', '20%', '40%', '60%', '80%', '100%'], [100, 120, 140, 160, 180, 200])
+        addSelect(0x3a0, 'button_sound', '제품 소리 크기', ['꺼짐', '20%', '40%', '60%', '80%', '100%'], [100, 120, 140, 160, 180, 200])
     }
 
     processData(buf: Buffer) {
@@ -184,15 +207,26 @@ export default class Device extends RACDevice {
 
     setProperty(prop: string, value: string) {
         if (prop === 'climate-preset_mode' && value === '공기 청정') {
-            this.raw_clip_state[fields.mode] = 5
-            this.send([1, 1, 2, 1, 1], [{ t: fields.mode, v: 5 }])
-            return
-        }
-        if (prop === 'climate-mode' && value === 'fan_only') {
+            this.raw_clip_state[fields.power] = 1
             this.raw_clip_state[fields.mode] = 5
             this.send(
                 [1, 1, 2, 1, 1],
                 [
+                    { t: fields.power, v: 1 },
+                    { t: fields.mode, v: 5 },
+                    { t: fields.fanSpeed, v: this.raw_clip_state[fields.fanSpeed] },
+                    { t: fields.targetTemperature, v: this.raw_clip_state[fields.targetTemperature] },
+                ],
+            )
+            return
+        }
+        if (prop === 'climate-mode' && value === 'fan_only') {
+            this.raw_clip_state[fields.power] = 1
+            this.raw_clip_state[fields.mode] = 5
+            this.send(
+                [1, 1, 2, 1, 1],
+                [
+                    { t: fields.power, v: 1 },
                     { t: fields.mode, v: 5 },
                     { t: fields.fanSpeed, v: this.raw_clip_state[fields.fanSpeed] },
                     { t: fields.targetTemperature, v: this.raw_clip_state[fields.targetTemperature] },

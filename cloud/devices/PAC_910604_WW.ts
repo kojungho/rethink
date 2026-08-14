@@ -28,6 +28,13 @@ export default class Device extends RACDevice {
         this.raw_clip_state[fields.fanSpeed] = 4
         this.raw_clip_state[fields.targetTemperature] = 50
         this.raw_clip_state[0x2b3] = 60
+        // PAC reports these RAC-compatible diagnostic fields in later A7
+        // notifications, after discovery has already been built. Seed only
+        // their presence so the inherited discovery components are created.
+        for (const id of [0x221, 0x330]) this.raw_clip_state[id] = 0
+        this.raw_clip_state[0x32e] = 1
+        for (const id of [0x2f9, 0x2fa, 0x32c, 0x332]) this.raw_clip_state[id] = 100
+        this.raw_clip_state[0x331] = 0
         this.initialValuesReceived = true
         this.initMakeSetConfig()
     }
@@ -43,6 +50,7 @@ export default class Device extends RACDevice {
                 unit_of_measurement: '%',
                 icon: 'mdi:water-percent',
             },
+            pm1: { name: 'PM1.0', unit_of_measurement: 'μg/m³', icon: 'mdi:molecule' },
             pm2_5: { name: 'PM2.5', device_class: 'pm25', unit_of_measurement: 'μg/m³', icon: 'mdi:molecule' },
             pm10: { name: 'PM10', device_class: 'pm10', unit_of_measurement: 'μg/m³', icon: 'mdi:molecule' },
             filter_remaining: { name: '필터 잔여량', unit_of_measurement: '%', icon: 'mdi:air-filter' },
@@ -57,6 +65,77 @@ export default class Device extends RACDevice {
                 ...sensor,
             } as unknown as DeviceDiscovery['components'][string]
         }
+
+        // PAC uses five consecutive values rather than RAC's three-value AI
+        // dry fan control.
+        config.components.ai_dry = {
+            platform: 'select',
+            unique_id: '$deviceid-ai-dry',
+            name: 'AI 건조 풍량',
+            icon: 'mdi:fan',
+            entity_category: 'config',
+            options: ['1단', '2단', '3단', '4단', '5단'],
+        } as unknown as DeviceDiscovery['components'][string]
+        this.addField(config, {
+            id: 0x1f2,
+            name: '',
+            comp: 'ai_dry',
+            read_xform: (raw) => (raw >= 2 && raw <= 6 ? `${raw - 1}단` : undefined),
+            write_xform: (val) => Number(val.replace('단', '')) + 1,
+        })
+
+        this.addConfigSwitchField(config, 0x2a2, 'uvnano', 'UVnano', 'mdi:shield-sun')
+        this.addConfigSwitchField(config, 0x20f, 'airclean', '공기 청정', 'mdi:air-purifier')
+        this.addConfigSwitchField(config, 0x20d, 'energysave', '절전', 'mdi:leaf')
+        this.addConfigSwitchField(config, 0x236, 'jet', '파워 냉방', 'mdi:snowflake')
+        this.addConfigSwitchFieldWithValues(config, 0x165, 'all_cleaning', '올클리닝', 'mdi:air-filter', 100, 0)
+
+        config.components.air_quality_sensor = {
+            platform: 'select',
+            unique_id: '$deviceid-air-quality-sensor',
+            name: '공기질 센서',
+            icon: 'mdi:air-filter',
+            entity_category: 'config',
+            options: ['운전 중에만', '항상'],
+        } as unknown as DeviceDiscovery['components'][string]
+        this.addField(config, {
+            id: 0x337,
+            name: '',
+            comp: 'air_quality_sensor',
+            read_xform: (raw) => (raw ? '항상' : '운전 중에만'),
+            write_xform: (val) => (val === '항상' ? 1 : 0),
+            write_callback: (val) => {
+                this.sendPrivCommand(0x0c, 0x01, Buffer.from([0, 0, 0, val]))
+                return false
+            },
+        })
+
+        this.addConfigSwitchField(config, 0x29d, 'quiet', '저소음', 'mdi:volume-low')
+        this.addConfigSwitchField(config, 0x1be, 'space_airflow', '공간맞춤 바람', 'mdi:air-filter')
+        this.addConfigSwitchField(config, 0x3a9, 'button_lock', '버튼 잠금', 'mdi:lock')
+
+        const addSelect = (id: number, name: string, desc: string, options: string[], values: number[]) => {
+            config.components[name] = {
+                platform: 'select',
+                unique_id: `$deviceid-${name}`,
+                name: desc,
+                options,
+                entity_category: 'config',
+            } as unknown as DeviceDiscovery['components'][string]
+            this.addField(config, {
+                id,
+                name: '',
+                comp: name,
+                read_xform: (raw) => options[values.indexOf(raw)],
+                write_xform: (val) => values[options.indexOf(val)],
+            })
+        }
+        addSelect(0x2a3, 'airflow_direction', '바람 방향', ['집중', '와이드', '좌', '우', '분리'], [1, 2, 3, 4, 5])
+        addSelect(0x2a8, 'one_side_airflow', '한쪽 바람', ['해제', '왼쪽', '오른쪽'], [0, 1, 2])
+        addSelect(0x3aa, 'lighting_mode', '라이팅 모드', ['종합청정도', '운전상태'], [1, 10])
+        addSelect(0x3ac, 'lighting_brightness', '라이팅 밝기', ['20%', '40%', '60%', '80%', '100%'], [20, 40, 60, 80, 100])
+        addSelect(0x21f, 'display_light', '제품 화면 밝기', ['꺼짐', '20%', '40%', '60%', '100%'], [100, 120, 140, 160, 200])
+        addSelect(0x3a0, 'button_sound', '제품 소리 크기', ['꺼짐', '20%', '40%', '60%', '100%'], [100, 120, 140, 160, 200])
     }
 
     processData(buf: Buffer) {
@@ -87,6 +166,7 @@ export default class Device extends RACDevice {
         this.processKeyValue(fields.targetTemperature, buf[33])
         this.processKeyValue(fields.currentTemperature, buf[34])
         this.HA.publishProperty(this.id, 'pm2_5', buf[57])
+        this.HA.publishProperty(this.id, 'pm1', buf[55])
         this.HA.publishProperty(this.id, 'pm10', buf[59])
         this.HA.publishProperty(this.id, 'humidity', buf[60])
         this.HA.publishProperty(this.id, 'filter_remaining', buf[286])

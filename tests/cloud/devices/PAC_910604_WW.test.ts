@@ -57,7 +57,7 @@ describe('PAC_910604_WW', () => {
             '4단',
             '5단',
         ])
-        assert.equal((components.space_airflow as { name: string }).name, '공간맞춤 바람(냉장전용)')
+        assert.equal((components.space_airflow as { name: string }).name, '공간맞춤 바람')
         assert.equal((components.space_airflow as { availability: { topic: string }[] }).availability.length, 3)
         assert.deepEqual((components.display_light as { options: string[] }).options, [
             '꺼짐',
@@ -79,7 +79,7 @@ describe('PAC_910604_WW', () => {
         assert.deepEqual(climate.swing_modes, ['집중', '분리', '와이드', '좌', '우'])
         assert.equal(climate.swing_horizontal_modes, undefined)
         assert.equal((components.quiet as { name: string }).name, '저소음 냉방')
-        assert.equal((components.outlet as { name: string }).name, '토출구(비 가동 시)')
+        assert.equal((components.outlet as { name: string }).name, '토출구 열기')
         assert.equal(components.airflow_direction, undefined)
         dev.drop()
     })
@@ -112,8 +112,13 @@ describe('PAC_910604_WW', () => {
         ha.setProperty(DEVICE_ID, 'space_airflow', 'command', 'ON')
         assert.equal(thinq.outbox.length, offCount)
         thinq.emit('data', COOL_STATUS)
+        const coolingCount = thinq.outbox.length
+        ha.setProperty(DEVICE_ID, 'outlet', 'command', 'ON')
+        assert.equal(thinq.outbox.length, coolingCount)
         ha.setProperty(DEVICE_ID, 'space_airflow', 'command', 'ON')
         assert.match(thinq.outbox.at(-1)!.toString('hex'), /6f81/i)
+        ha.setProperty(DEVICE_ID, 'quiet', 'command', 'ON')
+        assert.match(thinq.outbox.at(-1)!.toString('hex'), /a741/i)
         ha.setProperty(DEVICE_ID, 'uvnano', 'command', 'ON')
         assert.match(thinq.outbox.at(-1)!.toString('hex'), /a881/i)
         ha.setProperty(DEVICE_ID, 'jet', 'command', 'ON')

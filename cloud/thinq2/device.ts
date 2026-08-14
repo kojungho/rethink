@@ -57,6 +57,21 @@ type DeviceAcceptorEvents = {
     dropDevice: (id: string) => void
 }
 
+export function timeSyncPayload(now: Date, timezone: string | undefined) {
+    const match = timezone?.match(/^([+-])(\d{2})(\d{2})$/)
+    const offsetMinutes = match ? (match[1] === '-' ? -1 : 1) * (Number(match[2]) * 60 + Number(match[3])) : 0
+    const local = new Date(now.getTime() + offsetMinutes * 60 * 1000)
+    return Buffer.from([
+        local.getUTCFullYear() % 100,
+        local.getUTCMonth() + 1,
+        local.getUTCDate(),
+        local.getUTCHours(),
+        local.getUTCMinutes(),
+        local.getUTCSeconds(),
+        local.getUTCDay(),
+    ])
+}
+
 export class DeviceAcceptor extends TypedEmitter<DeviceAcceptorEvents> {
     clientsById: Record<string, Client> = {}
     constructor(readonly broker: Broker) {
@@ -152,15 +167,7 @@ export class DeviceAcceptor extends TypedEmitter<DeviceAcceptorEvents> {
     }
 
     timeSyncRequest(client: ClientWithExtra) {
-        const now = new Date()
-        const buf = Buffer.alloc(7)
-        buf[0] = now.getUTCFullYear() % 100
-        buf[1] = now.getUTCMonth()
-        buf[2] = now.getUTCDate()
-        buf[3] = now.getUTCHours()
-        buf[4] = now.getUTCMinutes()
-        buf[5] = now.getUTCSeconds()
-        buf[6] = now.getUTCDay()
+        const buf = timeSyncPayload(new Date(), client.deployMsg?.data?.appInfo?.timezone)
 
         const deviceId = client.deployMsg?.did
         if (!deviceId) return

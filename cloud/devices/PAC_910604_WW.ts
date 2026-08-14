@@ -165,18 +165,32 @@ export default class Device extends RACDevice {
             },
         })
 
-        this.addConfigSwitchField(config, 0x29d, 'quiet', '저소음 냉방', 'mdi:volume-low')
+        config.components.quiet = {
+            platform: 'switch',
+            unique_id: '$deviceid-quiet',
+            name: '저소음 냉방',
+            icon: 'mdi:volume-low',
+            entity_category: 'config',
+            availability: this.modeAvailability('quiet_availability'),
+            availability_mode: 'all',
+        } as unknown as DeviceDiscovery['components'][string]
+        this.addField(config, {
+            id: 0x29d,
+            name: '',
+            comp: 'quiet',
+            read_xform: (raw) => (raw ? 'ON' : 'OFF'),
+            write_xform: (val) => (val === 'ON' ? 1 : 0),
+            write_callback: (val) =>
+                val === 0 ||
+                (this.raw_clip_state[fields.power] !== 0 && this.raw_clip_state[fields.mode] === 0),
+        })
         config.components.space_airflow = {
             platform: 'switch',
             unique_id: '$deviceid-space_airflow',
-            name: '공간맞춤 바람(냉장전용)',
+            name: '공간맞춤 바람',
             icon: 'mdi:air-filter',
             entity_category: 'config',
-            availability: [
-                { topic: '$this/availability' },
-                { topic: '$rethink/availability' },
-                { topic: '$this/space_airflow_availability' },
-            ],
+            availability: this.modeAvailability('space_airflow_availability'),
             availability_mode: 'all',
         } as unknown as DeviceDiscovery['components'][string]
         this.addField(config, {
@@ -189,7 +203,23 @@ export default class Device extends RACDevice {
                 val === 0 ||
                 (this.raw_clip_state[fields.power] !== 0 && this.raw_clip_state[fields.mode] === 0),
         })
-        this.addConfigSwitchField(config, 0x392, 'outlet', '토출구(비 가동 시)', 'mdi:air-conditioner')
+        config.components.outlet = {
+            platform: 'switch',
+            unique_id: '$deviceid-outlet',
+            name: '토출구 열기',
+            icon: 'mdi:air-conditioner',
+            entity_category: 'config',
+            availability: this.modeAvailability('outlet_availability'),
+            availability_mode: 'all',
+        } as unknown as DeviceDiscovery['components'][string]
+        this.addField(config, {
+            id: 0x392,
+            name: '',
+            comp: 'outlet',
+            read_xform: (raw) => (raw ? 'ON' : 'OFF'),
+            write_xform: (val) => (val === 'ON' ? 1 : 0),
+            write_callback: () => this.raw_clip_state[fields.power] === 0,
+        })
         this.addConfigSwitchField(config, 0x3a9, 'button_lock', '버튼 잠금', 'mdi:lock')
 
         const addSelect = (id: number, name: string, desc: string, options: string[], values: number[]) => {
@@ -261,16 +291,23 @@ export default class Device extends RACDevice {
             this.raw_clip_state[id] = value
             this.HA.publishProperty(this.id, 'climate-mode', 'fan_only')
             this.HA.publishProperty(this.id, 'climate-preset_mode', '공기 청정')
-            this.updateSpaceAirflowAvailability()
+            this.updateModeAvailability()
             return
         }
         super.processKeyValue(id, value)
-        if (id === fields.power || id === fields.mode) this.updateSpaceAirflowAvailability()
+        if (id === fields.power || id === fields.mode) this.updateModeAvailability()
     }
 
-    private updateSpaceAirflowAvailability() {
-        const available = this.raw_clip_state[fields.power] !== 0 && this.raw_clip_state[fields.mode] === 0
-        this.HA.publishProperty(this.id, 'space_airflow_availability', available ? 'online' : 'offline')
+    private modeAvailability(topic: string) {
+        return [{ topic: '$this/availability' }, { topic: '$rethink/availability' }, { topic: `$this/${topic}` }]
+    }
+
+    private updateModeAvailability() {
+        const cooling = this.raw_clip_state[fields.power] !== 0 && this.raw_clip_state[fields.mode] === 0
+        const off = this.raw_clip_state[fields.power] === 0
+        this.HA.publishProperty(this.id, 'space_airflow_availability', cooling ? 'online' : 'offline')
+        this.HA.publishProperty(this.id, 'quiet_availability', cooling ? 'online' : 'offline')
+        this.HA.publishProperty(this.id, 'outlet_availability', off ? 'online' : 'offline')
     }
 
     setProperty(prop: string, value: string) {

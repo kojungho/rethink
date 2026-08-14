@@ -4,7 +4,7 @@ FROM alpine:3.20 AS build
 
 # Pinning the source revision makes Docker invalidate the remote-archive layer
 # when the add-on is rebuilt after a source update.
-ARG RETHINK_REF=3bf439e01acc9823fd1d3b3555dacaab46785ad4
+ARG RETHINK_REF=2f89342fdf2177612b5b4e42a708e76ad0881bcc
 
 WORKDIR /src
 

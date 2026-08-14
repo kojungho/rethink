@@ -76,8 +76,11 @@ describe('PAC_910604_WW', () => {
             '100%',
         ])
         const climate = components.climate as unknown as Record<string, unknown>
-        assert.equal(climate.swing_modes, undefined)
+        assert.deepEqual(climate.swing_modes, ['집중', '분리', '와이드', '좌', '우'])
         assert.equal(climate.swing_horizontal_modes, undefined)
+        assert.equal((components.quiet as { name: string }).name, '저소음 냉방')
+        assert.equal((components.outlet as { name: string }).name, '토출구(비 가동 시)')
+        assert.equal(components.airflow_direction, undefined)
         dev.drop()
     })
     test('decodes A8 sensors and A7 temperature', () => {
@@ -103,6 +106,8 @@ describe('PAC_910604_WW', () => {
         assert.match(thinq.outbox.at(-1)!.toString('hex'), /e481/i)
         ha.setProperty(DEVICE_ID, 'outlet', 'command', 'OFF')
         assert.match(thinq.outbox.at(-1)!.toString('hex'), /e480/i)
+        ha.setProperty(DEVICE_ID, 'climate', 'swing_mode_command', '분리')
+        assert.match(thinq.outbox.at(-1)!.toString('hex'), /a8c5/i)
         const offCount = thinq.outbox.length
         ha.setProperty(DEVICE_ID, 'space_airflow', 'command', 'ON')
         assert.equal(thinq.outbox.length, offCount)

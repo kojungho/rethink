@@ -47,6 +47,7 @@ export default class Device extends RACDevice {
                 display_light: { platform: 'switch' } as unknown as DeviceDiscovery['components'][string],
                 button_sound: { platform: 'switch' } as unknown as DeviceDiscovery['components'][string],
                 ai_dry_power: { platform: 'switch' } as unknown as DeviceDiscovery['components'][string],
+                airflow_direction: { platform: 'select' } as unknown as DeviceDiscovery['components'][string],
             },
         })
         this.initMakeSetConfig()
@@ -67,14 +68,19 @@ export default class Device extends RACDevice {
         // RAC vertical/horizontal swing controls.
         const climate = config.components.climate as unknown as Record<string, unknown>
         for (const key of [
-            'swing_modes',
-            'swing_mode_state_topic',
-            'swing_mode_command_topic',
             'swing_horizontal_modes',
             'swing_horizontal_mode_state_topic',
             'swing_horizontal_mode_command_topic',
         ])
             delete climate[key]
+        climate.swing_modes = ['집중', '분리', '와이드', '좌', '우']
+        this.addField(config, {
+            id: 0x2a3,
+            name: 'swing_mode',
+            comp: 'climate',
+            read_xform: (raw) => (({ 1: '집중', 2: '와이드', 3: '좌', 4: '우', 5: '분리' }) as Record<number, string>)[raw],
+            write_xform: (val) => (({ 집중: 1, 분리: 5, 와이드: 2, 좌: 3, 우: 4 }) as Record<string, number>)[val],
+        })
 
         const sensors = {
             humidity: {
@@ -159,7 +165,7 @@ export default class Device extends RACDevice {
             },
         })
 
-        this.addConfigSwitchField(config, 0x29d, 'quiet', '냉방 저소음', 'mdi:volume-low')
+        this.addConfigSwitchField(config, 0x29d, 'quiet', '저소음 냉방', 'mdi:volume-low')
         config.components.space_airflow = {
             platform: 'switch',
             unique_id: '$deviceid-space_airflow',
@@ -183,7 +189,7 @@ export default class Device extends RACDevice {
                 val === 0 ||
                 (this.raw_clip_state[fields.power] !== 0 && this.raw_clip_state[fields.mode] === 0),
         })
-        this.addConfigSwitchField(config, 0x392, 'outlet', '토출구', 'mdi:air-conditioner')
+        this.addConfigSwitchField(config, 0x392, 'outlet', '토출구(비 가동 시)', 'mdi:air-conditioner')
         this.addConfigSwitchField(config, 0x3a9, 'button_lock', '버튼 잠금', 'mdi:lock')
 
         const addSelect = (id: number, name: string, desc: string, options: string[], values: number[]) => {
@@ -202,7 +208,6 @@ export default class Device extends RACDevice {
                 write_xform: (val) => values[options.indexOf(val)],
             })
         }
-        addSelect(0x2a3, 'airflow_direction', '바람 방향', ['집중', '와이드', '좌', '우', '분리'], [1, 2, 3, 4, 5])
         addSelect(0x2a8, 'one_side_airflow', '한쪽 바람', ['해제', '왼쪽', '오른쪽'], [0, 1, 2])
         addSelect(0x3aa, 'lighting_mode', '라이팅 모드', ['종합청정도', '운전상태'], [1, 10])
         addSelect(0x3ac, 'lighting_brightness', '라이팅 밝기', ['20%', '40%', '60%', '80%', '100%'], [20, 40, 60, 80, 100])

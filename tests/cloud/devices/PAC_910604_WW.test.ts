@@ -58,6 +58,7 @@ describe('PAC_910604_WW', () => {
             '5단',
         ])
         assert.equal((components.space_airflow as { name: string }).name, '공간맞춤 바람(냉장전용)')
+        assert.equal((components.space_airflow as { availability: { topic: string }[] }).availability.length, 3)
         assert.deepEqual((components.display_light as { options: string[] }).options, [
             '꺼짐',
             '20%',

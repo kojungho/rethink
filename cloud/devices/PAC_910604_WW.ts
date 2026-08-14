@@ -166,9 +166,12 @@ export default class Device extends RACDevice {
             name: '공간맞춤 바람(냉장전용)',
             icon: 'mdi:air-filter',
             entity_category: 'config',
-            availability_topic: '$this/space_airflow_availability',
-            payload_available: 'online',
-            payload_not_available: 'offline',
+            availability: [
+                { topic: '$this/availability' },
+                { topic: '$rethink/availability' },
+                { topic: '$this/space_airflow_availability' },
+            ],
+            availability_mode: 'all',
         } as unknown as DeviceDiscovery['components'][string]
         this.addField(config, {
             id: 0x1be,

@@ -93,6 +93,9 @@ describe('PAC_910604_WW', () => {
         assert.match(thinq.outbox.at(-1)!.toString('hex'), /65fd0100050c00000001/i)
         ha.setProperty(DEVICE_ID, 'climate', 'mode_command', 'fan_only')
         assert.match(thinq.outbox.at(-1)!.toString('hex'), /7dc17e45/i)
+        const sentCount = thinq.outbox.length
+        thinq.emit('data', buf('000004000000a7020445117dc17e457f903c7e8483c1d2058f41c48ff538'))
+        assert.equal(thinq.outbox.length, sentCount)
         dev.drop()
     })
 })

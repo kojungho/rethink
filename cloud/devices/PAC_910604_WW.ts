@@ -53,6 +53,13 @@ export default class Device extends RACDevice {
     query() {}
 
     protected extendConfig(config: DeviceDiscovery) {
+        // PAC reports and accepts these controls directly. RAC's deferred
+        // power/mode hooks replay cached air-clean/energy/jet values before
+        // the PAC status packet has been fully processed, which can turn a
+        // newly started fan-only session straight back off.
+        this.powerChangeHooks = []
+        this.modeChangeHooks = []
+
         // PAC exposes a five-way airflow direction selector instead of the
         // RAC vertical/horizontal swing controls.
         const climate = config.components.climate as unknown as Record<string, unknown>

@@ -44,9 +44,20 @@ describe('PAC_910604_WW', () => {
             'airclean',
             'energysave',
             'jet',
+            'space_airflow',
+            'outlet',
         ])
             assert.ok(components[id])
-        assert.deepEqual((components.ai_dry as { options: string[] }).options, ['1단', '2단', '3단', '4단', '5단'])
+        assert.equal(components.ai_dry_power, undefined)
+        assert.deepEqual((components.ai_dry as { options: string[] }).options, [
+            '꺼짐',
+            '1단',
+            '2단',
+            '3단',
+            '4단',
+            '5단',
+        ])
+        assert.equal((components.space_airflow as { name: string }).name, '공간맞춤 바람(냉장전용)')
         assert.deepEqual((components.display_light as { options: string[] }).options, [
             '꺼짐',
             '20%',
@@ -84,7 +95,19 @@ describe('PAC_910604_WW', () => {
     test('maps PAC-specific controls', () => {
         const { ha, thinq, dev } = makeDevice()
         ha.setProperty(DEVICE_ID, 'ai_dry', 'command', '5단')
-        assert.match(thinq.outbox.at(-1)!.toString('hex'), /7c86/i)
+        assert.match(thinq.outbox.at(-1)!.toString('hex'), /8390ff7c86/i)
+        ha.setProperty(DEVICE_ID, 'ai_dry', 'command', '꺼짐')
+        assert.match(thinq.outbox.at(-1)!.toString('hex'), /8380/i)
+        ha.setProperty(DEVICE_ID, 'outlet', 'command', 'ON')
+        assert.match(thinq.outbox.at(-1)!.toString('hex'), /e481/i)
+        ha.setProperty(DEVICE_ID, 'outlet', 'command', 'OFF')
+        assert.match(thinq.outbox.at(-1)!.toString('hex'), /e480/i)
+        const offCount = thinq.outbox.length
+        ha.setProperty(DEVICE_ID, 'space_airflow', 'command', 'ON')
+        assert.equal(thinq.outbox.length, offCount)
+        thinq.emit('data', COOL_STATUS)
+        ha.setProperty(DEVICE_ID, 'space_airflow', 'command', 'ON')
+        assert.match(thinq.outbox.at(-1)!.toString('hex'), /6f81/i)
         ha.setProperty(DEVICE_ID, 'uvnano', 'command', 'ON')
         assert.match(thinq.outbox.at(-1)!.toString('hex'), /a881/i)
         ha.setProperty(DEVICE_ID, 'jet', 'command', 'ON')

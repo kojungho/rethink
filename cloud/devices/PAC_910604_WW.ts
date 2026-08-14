@@ -28,6 +28,8 @@ export default class Device extends RACDevice {
         this.raw_clip_state[fields.mode] = 0
         this.raw_clip_state[fields.fanSpeed] = 4
         this.raw_clip_state[fields.targetTemperature] = 50
+        this.raw_clip_state[0x20e] = 0
+        this.raw_clip_state[0x1f2] = 2
         this.raw_clip_state[0x2b3] = 60
         // PAC reports these RAC-compatible diagnostic fields in later A7
         // notifications, after discovery has already been built. Seed only
@@ -44,6 +46,7 @@ export default class Device extends RACDevice {
             components: {
                 display_light: { platform: 'switch' } as unknown as DeviceDiscovery['components'][string],
                 button_sound: { platform: 'switch' } as unknown as DeviceDiscovery['components'][string],
+                ai_dry_power: { platform: 'switch' } as unknown as DeviceDiscovery['components'][string],
             },
         })
         this.initMakeSetConfig()
@@ -96,22 +99,38 @@ export default class Device extends RACDevice {
             } as unknown as DeviceDiscovery['components'][string]
         }
 
-        // PAC uses five consecutive values rather than RAC's three-value AI
-        // dry fan control.
+        // PAC uses one power tag and five consecutive fan values. Present
+        // them as a single selector so "꺼짐" replaces the separate switch.
+        delete config.components.ai_dry_power
         config.components.ai_dry = {
             platform: 'select',
             unique_id: '$deviceid-ai-dry',
             name: 'AI 건조 풍량',
             icon: 'mdi:fan',
             entity_category: 'config',
-            options: ['1단', '2단', '3단', '4단', '5단'],
+            options: ['꺼짐', '1단', '2단', '3단', '4단', '5단'],
         } as unknown as DeviceDiscovery['components'][string]
         this.addField(config, {
-            id: 0x1f2,
             name: '',
             comp: 'ai_dry',
-            read_xform: (raw) => (raw >= 2 && raw <= 6 ? `${raw - 1}단` : undefined),
-            write_xform: (val) => Number(val.replace('단', '')) + 1,
+            write_xform: (val) => (val === '꺼짐' ? 0 : Number(val.replace('단', '')) + 1),
+            write_callback: (val) => {
+                if (val === 0) {
+                    this.raw_clip_state[0x20e] = 0
+                    this.send([1, 1, 2, 1, 1], [{ t: 0x20e, v: 0 }])
+                } else {
+                    this.raw_clip_state[0x20e] = 255
+                    this.raw_clip_state[0x1f2] = val
+                    this.send(
+                        [1, 1, 2, 1, 1],
+                        [
+                            { t: 0x20e, v: 255 },
+                            { t: 0x1f2, v: val },
+                        ],
+                    )
+                }
+                return false
+            },
         })
 
         this.addConfigSwitchField(config, 0x2a2, 'uvnano', 'UVnano', 'mdi:shield-sun')
@@ -141,7 +160,27 @@ export default class Device extends RACDevice {
         })
 
         this.addConfigSwitchField(config, 0x29d, 'quiet', '냉방 저소음', 'mdi:volume-low')
-        this.addConfigSwitchField(config, 0x1be, 'space_airflow', '공간맞춤 바람', 'mdi:air-filter')
+        config.components.space_airflow = {
+            platform: 'switch',
+            unique_id: '$deviceid-space_airflow',
+            name: '공간맞춤 바람(냉장전용)',
+            icon: 'mdi:air-filter',
+            entity_category: 'config',
+            availability_topic: '$this/space_airflow_availability',
+            payload_available: 'online',
+            payload_not_available: 'offline',
+        } as unknown as DeviceDiscovery['components'][string]
+        this.addField(config, {
+            id: 0x1be,
+            name: '',
+            comp: 'space_airflow',
+            read_xform: (raw) => (raw ? 'ON' : 'OFF'),
+            write_xform: (val) => (val === 'ON' ? 1 : 0),
+            write_callback: (val) =>
+                val === 0 ||
+                (this.raw_clip_state[fields.power] !== 0 && this.raw_clip_state[fields.mode] === 0),
+        })
+        this.addConfigSwitchField(config, 0x392, 'outlet', '토출구', 'mdi:air-conditioner')
         this.addConfigSwitchField(config, 0x3a9, 'button_lock', '버튼 잠금', 'mdi:lock')
 
         const addSelect = (id: number, name: string, desc: string, options: string[], values: number[]) => {
@@ -203,13 +242,27 @@ export default class Device extends RACDevice {
     }
 
     processKeyValue(id: number, value: number) {
+        if (id === 0x20e || id === 0x1f2) {
+            this.raw_clip_state[id] = value
+            const level = this.raw_clip_state[0x1f2]
+            const state = this.raw_clip_state[0x20e] === 255 && level >= 2 && level <= 6 ? `${level - 1}단` : '꺼짐'
+            this.HA.publishProperty(this.id, 'ai_dry-', state)
+            return
+        }
         if (id === fields.mode && value === 5) {
             this.raw_clip_state[id] = value
             this.HA.publishProperty(this.id, 'climate-mode', 'fan_only')
             this.HA.publishProperty(this.id, 'climate-preset_mode', '공기 청정')
+            this.updateSpaceAirflowAvailability()
             return
         }
         super.processKeyValue(id, value)
+        if (id === fields.power || id === fields.mode) this.updateSpaceAirflowAvailability()
+    }
+
+    private updateSpaceAirflowAvailability() {
+        const available = this.raw_clip_state[fields.power] !== 0 && this.raw_clip_state[fields.mode] === 0
+        this.HA.publishProperty(this.id, 'space_airflow_availability', available ? 'online' : 'offline')
     }
 
     setProperty(prop: string, value: string) {

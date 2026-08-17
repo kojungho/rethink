@@ -39,6 +39,8 @@ describe(MODEL_ID, () => {
         assert.equal(components.display_lock_raw.platform, 'sensor')
         assert.equal(components.energy_report_type.platform, 'sensor')
         assert.equal(components.energy_report_raw.platform, 'sensor')
+        assert.equal(components.smart_care.platform, 'sensor')
+        assert.equal(components.smart_care_control.platform, 'switch')
     })
 
     test('start() requests the full 68-byte status block', () => {
@@ -75,6 +77,41 @@ describe(MODEL_ID, () => {
         assert.equal(properties.freezer_setpoint, -18)
         assert.equal(properties.craft_ice, '6개 제빙')
         assert.equal(properties.dispenser_mode, '정수')
+        assert.equal(properties.smart_care, '꺼짐')
+        assert.equal(properties.smart_care_control, 'OFF')
+    })
+
+    test('does not report unsupported express cool as OFF', () => {
+        const { ha, thinq } = makeDevice()
+        const status = Buffer.alloc(68, 0xff)
+        status[1] = 5
+        status[2] = 4
+        status[3] = 1
+        status[4] = 2
+        status[7] = 0
+        status[17] = 0
+        status[25] = 2
+        status[30] = 0
+        status[31] = 0
+        status[40] = 1
+        status[66] = 2
+
+        thinq.emit('data', statusFrame(status))
+        assert.equal(ha.devices[DEVICE_ID].properties.express_cool_status, undefined)
+    })
+
+    test('writes Smart Care on and off using the confirmed status[17] field', () => {
+        const { thinq, dev } = makeDevice()
+        thinq.resetRecorder()
+
+        dev.setProperty('smart_care_control', 'ON')
+        assert.equal(thinq.outbox.length, 1)
+        assert.equal(thinq.outbox[0][4 + 17], 1)
+
+        thinq.resetRecorder()
+        dev.setProperty('smart_care_control', 'OFF')
+        assert.equal(thinq.outbox.length, 1)
+        assert.equal(thinq.outbox[0][4 + 17], 0)
     })
 
     test('publishes 10AF as raw diagnostics without assigning an energy unit', () => {

@@ -137,6 +137,17 @@ export default class Device extends AABBDevice {
                         state_topic: '$this/smart_care',
                         name: '스마트케어+',
                     },
+                    smart_care_control: {
+                        platform: 'switch',
+                        icon: 'mdi:heart-pulse',
+                        unique_id: '$deviceid-smart_care_control',
+                        state_topic: '$this/smart_care_control',
+                        command_topic: '$this/smart_care_control/set',
+                        name: '스마트케어+ 제어',
+                        entity_category: 'config',
+                        payload_on: 'ON',
+                        payload_off: 'OFF',
+                    },
                     night_glare_prevention: {
                         platform: 'sensor',
                         icon: 'mdi:weather-night',
@@ -246,7 +257,8 @@ export default class Device extends AABBDevice {
         this.publishProperty('fridge_setpoint', setpointFridge)
         this.publishProperty('freezer_setpoint', setpointFreezer)
         this.publishProperty('express_freeze', expressFreezeOn ? 'ON' : 'OFF')
-        this.publishProperty('express_cool_status', expressCoolOn ? 'ON' : 'OFF')
+        // 0xFF is unsupported/unavailable, not OFF.
+        if (curStatus[16] !== 0xff) this.publishProperty('express_cool_status', expressCoolOn ? 'ON' : 'OFF')
         this.publishProperty('pure_n_fresh', pureNFresh)
         this.publishProperty('display_lock_raw', curStatus[10])
         if (publishAdvancedSettings) this.publishAdvancedSettings(curStatus)
@@ -260,6 +272,7 @@ export default class Device extends AABBDevice {
         const glareMode = glareModes[status[30]] || '알 수 없음'
         const quietMode = status[31] === 3 ? '시간 설정' : '사용 안 함'
         this.publishProperty('smart_care', status[17] === 1 ? '켜짐' : '꺼짐')
+        this.publishProperty('smart_care_control', status[17] === 1 ? 'ON' : 'OFF')
         this.publishProperty('night_glare_prevention', glareMode)
         this.publishProperty('night_quiet', quietMode)
     }
@@ -282,13 +295,16 @@ export default class Device extends AABBDevice {
         } else if (prop === 'express_freeze') {
             baseMessage[2 + 3] = mqttValue === 'ON' ? 2 : 1
             this.send(baseMessage)
+        } else if (prop === 'smart_care_control') {
+            baseMessage[2 + 17] = mqttValue === 'ON' ? 1 : 0
+            this.send(baseMessage)
         } else if (prop === 'craft_ice') {
-            const map: Record<string, number> = { '꺼짐': 0, '3개 제빙': 1, '6개 제빙': 2 }
+            const map: Record<string, number> = { 꺼짐: 0, '3개 제빙': 1, '6개 제빙': 2 }
             baseMessage[2 + 25] = map[mqttValue] ?? 0
             this.send(baseMessage)
         } else if (prop === 'dispenser_mode') {
             const map: Record<string, number> = { '선택 안 함': 0, '조각 얼음': 1, 정수: 2, 각얼음: 3 }
-            baseMessage[2 + 66] = map[mqttValue] ?? 0  // 이전 코드 65에서 66으로 수정됨
+            baseMessage[2 + 66] = map[mqttValue] ?? 0 // 이전 코드 65에서 66으로 수정됨
             this.send(baseMessage)
         } else if (prop === 'button_sound') {
             baseMessage[2 + 40] = mqttValue === 'ON' ? 1 : 0
@@ -297,5 +313,4 @@ export default class Device extends AABBDevice {
             console.warn(`Unknown property ${prop}`)
         }
     }
-
 }

@@ -33,6 +33,8 @@ describe(MODEL_ID, () => {
         assert.ok(components.express_freeze)
         assert.ok(components.craft_ice)
         assert.ok(components.dispenser_mode)
+        assert.equal(components.dispense_volume.device_class, 'volume')
+        assert.equal(components.dispense_volume.unit_of_measurement, 'mL')
         assert.ok(components.button_sound)
         assert.equal(components.express_cool_status.platform, 'binary_sensor')
         assert.equal(components.pure_n_fresh.platform, 'sensor')
@@ -66,6 +68,7 @@ describe(MODEL_ID, () => {
         status[30] = 0 // night glare disabled
         status[31] = 0 // night quiet disabled
         status[40] = 1 // button sound on
+        status[65] = 50 // configured 500 mL dispense
         status[66] = 2 // water dispenser
 
         thinq.emit('data', statusFrame(status))
@@ -77,8 +80,29 @@ describe(MODEL_ID, () => {
         assert.equal(properties.freezer_setpoint, -18)
         assert.equal(properties.craft_ice, '6개 제빙')
         assert.equal(properties.dispenser_mode, '정수')
+        assert.equal(properties.dispense_volume, 500)
         assert.equal(properties.smart_care, '꺼짐')
         assert.equal(properties.smart_care_control, 'OFF')
+    })
+
+    test('publishes only the confirmed fixed dispense volumes', () => {
+        const { ha, thinq } = makeDevice()
+
+        for (const [units, milliliters] of [
+            [25, 250],
+            [50, 500],
+            [100, 1000],
+        ]) {
+            const status = Buffer.alloc(68, 0xff)
+            status[65] = units
+            thinq.emit('data', statusFrame(status))
+            assert.equal(ha.devices[DEVICE_ID].properties.dispense_volume, milliliters)
+        }
+
+        const unconfirmed = Buffer.alloc(68, 0xff)
+        unconfirmed[65] = 35
+        thinq.emit('data', statusFrame(unconfirmed))
+        assert.equal(ha.devices[DEVICE_ID].properties.dispense_volume, 1000)
     })
 
     test('does not report unsupported express cool as OFF', () => {

@@ -182,6 +182,16 @@ export default class Device extends AABBDevice {
                         options: ['선택 안 함', '조각 얼음', '정수', '각얼음'],
                         entity_category: 'config',
                     },
+                    dispense_volume: {
+                        platform: 'sensor',
+                        device_class: 'volume',
+                        state_class: 'measurement',
+                        unit_of_measurement: 'mL',
+                        icon: 'mdi:cup-water',
+                        name: '설정 출수량',
+                        unique_id: '$deviceid-dispense_volume',
+                        state_topic: '$this/dispense_volume',
+                    },
                     button_sound: {
                         platform: 'switch',
                         icon: 'mdi:volume-high',
@@ -251,6 +261,15 @@ export default class Device extends AABBDevice {
         const dispenserModes = ['선택 안 함', '조각 얼음', '정수', '각얼음']
         const dispenserMode = dispenserModes[curStatus[66]] || '선택 안 함'
 
+        // 정량 출수 설정은 10 mL 단위다. 수동 출수 중에는 이 필드가
+        // 실시간으로 변하지 않으므로 누적/실시간 출수량으로 취급하지 않는다.
+        const dispenseVolumeUnits = curStatus[65]
+        const confirmedDispenseVolumes: Record<number, number> = {
+            25: 250,
+            50: 500,
+            100: 1000,
+        }
+
         // MQTT 퍼블리시
         this.publishProperty('door', anyDoorOpen ? 'ON' : 'OFF')
         this.publishProperty('power_status', 'ON')
@@ -264,6 +283,9 @@ export default class Device extends AABBDevice {
         if (publishAdvancedSettings) this.publishAdvancedSettings(curStatus)
         this.publishProperty('craft_ice', craftIceMode)
         this.publishProperty('dispenser_mode', dispenserMode)
+        if (dispenseVolumeUnits in confirmedDispenseVolumes) {
+            this.publishProperty('dispense_volume', confirmedDispenseVolumes[dispenseVolumeUnits])
+        }
         this.publishProperty('button_sound', buttonSoundOn ? 'ON' : 'OFF')
     }
 

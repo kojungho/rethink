@@ -31,13 +31,10 @@ export default class Device extends RACDevice {
         this.raw_clip_state[0x20e] = 0
         this.raw_clip_state[0x1f2] = 2
         this.raw_clip_state[0x2b3] = 60
-        // PAC reports these RAC-compatible diagnostic fields in later A7
-        // notifications, after discovery has already been built. Seed only
-        // their presence so the inherited discovery components are created.
-        for (const id of [0x221, 0x330]) this.raw_clip_state[id] = 0
-        this.raw_clip_state[0x32e] = 1
-        for (const id of [0x2f9, 0x2fa, 0x32c, 0x332]) this.raw_clip_state[id] = 100
-        this.raw_clip_state[0x331] = 0
+        // Error code is reported by PAC. The other inherited RAC diagnostic
+        // fields are not reported by this model and must not create permanent
+        // unknown entities.
+        this.raw_clip_state[0x221] = 0
         this.initialValuesReceived = true
         // Remove the legacy RAC switch discovery before replacing the same
         // component keys with PAC brightness selects.
@@ -48,6 +45,13 @@ export default class Device extends RACDevice {
                 button_sound: { platform: 'switch' } as unknown as DeviceDiscovery['components'][string],
                 ai_dry_power: { platform: 'switch' } as unknown as DeviceDiscovery['components'][string],
                 airflow_direction: { platform: 'select' } as unknown as DeviceDiscovery['components'][string],
+                capacity: { platform: 'sensor' } as unknown as DeviceDiscovery['components'][string],
+                eev: { platform: 'sensor' } as unknown as DeviceDiscovery['components'][string],
+                fanrpm: { platform: 'sensor' } as unknown as DeviceDiscovery['components'][string],
+                oduairtemp: { platform: 'sensor' } as unknown as DeviceDiscovery['components'][string],
+                oduhextemp: { platform: 'sensor' } as unknown as DeviceDiscovery['components'][string],
+                pipeintemp: { platform: 'sensor' } as unknown as DeviceDiscovery['components'][string],
+                pipeouttemp: { platform: 'sensor' } as unknown as DeviceDiscovery['components'][string],
             },
         })
         this.initMakeSetConfig()

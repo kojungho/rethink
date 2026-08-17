@@ -32,13 +32,6 @@ describe('PAC_910604_WW', () => {
             'pm10',
             'filter_remaining',
             'energy_current',
-            'capacity',
-            'eev',
-            'fanrpm',
-            'oduairtemp',
-            'oduhextemp',
-            'pipeintemp',
-            'pipeouttemp',
             'uvnano',
             'air_quality_sensor',
             'airclean',
@@ -48,6 +41,8 @@ describe('PAC_910604_WW', () => {
             'outlet',
         ])
             assert.ok(components[id])
+        for (const id of ['capacity', 'eev', 'fanrpm', 'oduairtemp', 'oduhextemp', 'pipeintemp', 'pipeouttemp'])
+            assert.equal(components[id], undefined)
         assert.equal(components.ai_dry_power, undefined)
         assert.deepEqual((components.ai_dry as { options: string[] }).options, [
             '꺼짐',

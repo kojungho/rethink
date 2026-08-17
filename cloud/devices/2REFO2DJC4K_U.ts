@@ -88,6 +88,48 @@ export default class Device extends AABBDevice {
                         payload_on: 'ON',
                         payload_off: 'OFF',
                     },
+                    express_cool_status: {
+                        platform: 'binary_sensor',
+                        icon: 'mdi:snowflake-thermometer',
+                        unique_id: '$deviceid-express_cool_status',
+                        state_topic: '$this/express_cool_status',
+                        name: '급속 냉장 상태',
+                        entity_category: 'diagnostic',
+                        payload_on: 'ON',
+                        payload_off: 'OFF',
+                    },
+                    pure_n_fresh: {
+                        platform: 'sensor',
+                        icon: 'mdi:air-filter',
+                        unique_id: '$deviceid-pure_n_fresh',
+                        state_topic: '$this/pure_n_fresh',
+                        name: '퓨어 프레쉬 상태',
+                        entity_category: 'diagnostic',
+                    },
+                    display_lock_raw: {
+                        platform: 'sensor',
+                        icon: 'mdi:lock-question',
+                        unique_id: '$deviceid-display_lock_raw',
+                        state_topic: '$this/display_lock_raw',
+                        name: '표시창 잠금 원시값',
+                        entity_category: 'diagnostic',
+                    },
+                    energy_report_type: {
+                        platform: 'sensor',
+                        icon: 'mdi:identifier',
+                        unique_id: '$deviceid-energy_report_type',
+                        state_topic: '$this/energy_report_type',
+                        name: '에너지 보고 유형',
+                        entity_category: 'diagnostic',
+                    },
+                    energy_report_raw: {
+                        platform: 'sensor',
+                        icon: 'mdi:lightning-bolt',
+                        unique_id: '$deviceid-energy_report_raw',
+                        state_topic: '$this/energy_report_raw',
+                        name: '에너지 보고 원시값',
+                        entity_category: 'diagnostic',
+                    },
                     smart_care: {
                         platform: 'sensor',
                         icon: 'mdi:heart-pulse',
@@ -146,7 +188,8 @@ export default class Device extends AABBDevice {
     }
 
     start() {
-        // 장치가 연결 시 자체 보고하므로 별도의 시작 쿼리는 생략합니다.
+        // 연결 직후 자발적인 상태 보고를 기다리지 않고 전체 상태를 요청합니다.
+        this.send(Buffer.from('F0ED1211010000010400', 'hex'))
     }
 
     processAABB(buf: Buffer) {
@@ -159,17 +202,35 @@ export default class Device extends AABBDevice {
         if (buf.length === 2 + 68 && buf[0] == 0x10 && buf[1] == 0xeb) {
             this.processStatus(buf.subarray(2, 2 + 68))
         }
+        // 10AF의 정확한 단위와 집계 구간은 아직 확인되지 않았으므로
+        // 에너지/전력 센서로 환산하지 않고 원시 진단값만 제공합니다.
+        if (buf.length >= 5 && buf[0] === 0x10 && buf[1] === 0xaf) {
+            this.publishProperty('energy_report_type', `0x${buf[2].toString(16).padStart(2, '0').toUpperCase()}`)
+            this.publishProperty('energy_report_raw', buf.readUInt16BE(buf.length - 2))
+        }
     }
 
     processStatus(curStatus: Buffer, publishAdvancedSettings = true) {
         // 1. 온도 맵핑
         const setpointFridge = 8 - curStatus[1]
         const setpointFreezer = -14 - curStatus[2]
-        
+
         // 2. 도어 & 기능 상태 (로그 분석결과 냉장/냉동 구분 없이 7번 오프셋으로 통합 수신됨)
         const anyDoorOpen = curStatus[7] === 1 // 0=닫힘, 1=열림
         const expressFreezeOn = curStatus[3] === 2 // 1=끔, 2=켬
+        const expressCoolOn = curStatus[16] === 1 // 0=끔, 1=켬
         const buttonSoundOn = curStatus[40] === 1 // 0=끔, 1=켬
+
+        // 이 모델에서 쓰기 동작이 확인되지 않은 필드는 읽기 전용으로 노출합니다.
+        const pureNFreshModes: Record<number, string> = {
+            1: '꺼짐',
+            2: '자동',
+            3: '파워',
+            4: '필터 교체',
+            7: '스마트케어/진단',
+            0xff: '지원 안 함',
+        }
+        const pureNFresh = pureNFreshModes[curStatus[4]] ?? `원시값 ${curStatus[4]}`
 
         // 3. 크래프트 아이스 모드 (0=끔, 1=3 ICE, 2=6 ICE)
         const craftIceModes = ['꺼짐', '3개 제빙', '6개 제빙']
@@ -185,6 +246,9 @@ export default class Device extends AABBDevice {
         this.publishProperty('fridge_setpoint', setpointFridge)
         this.publishProperty('freezer_setpoint', setpointFreezer)
         this.publishProperty('express_freeze', expressFreezeOn ? 'ON' : 'OFF')
+        this.publishProperty('express_cool_status', expressCoolOn ? 'ON' : 'OFF')
+        this.publishProperty('pure_n_fresh', pureNFresh)
+        this.publishProperty('display_lock_raw', curStatus[10])
         if (publishAdvancedSettings) this.publishAdvancedSettings(curStatus)
         this.publishProperty('craft_ice', craftIceMode)
         this.publishProperty('dispenser_mode', dispenserMode)

@@ -15,6 +15,8 @@ const fields = {
 
 /** LG Korean stand air conditioner using A7 TLV notifications and A8 fixed status frames. */
 export default class Device extends RACDevice {
+    private fanModeProfile: 'dry' | 'levels' = 'levels'
+
     constructor(HA: Connection, thinq: Thinq2Device, meta: Metadata) {
         super(HA, thinq, meta)
         if (this.query_caps_timeout != undefined) {
@@ -78,6 +80,7 @@ export default class Device extends RACDevice {
         ])
             delete climate[key]
         climate.swing_modes = ['집중', '분리', '와이드', '좌', '우']
+        climate.fan_modes = ['1단', '2단', '3단', '4단', '5단']
         this.addField(config, {
             id: 0x2a3,
             name: 'swing_mode',
@@ -296,10 +299,12 @@ export default class Device extends RACDevice {
             this.HA.publishProperty(this.id, 'climate-mode', 'fan_only')
             this.HA.publishProperty(this.id, 'climate-preset_mode', '공기 청정')
             this.updateModeAvailability()
+            this.updateFanModeOptions()
             return
         }
         super.processKeyValue(id, value)
         if (id === fields.power || id === fields.mode) this.updateModeAvailability()
+        if (id === fields.mode) this.updateFanModeOptions()
     }
 
     private modeAvailability(topic: string) {
@@ -312,6 +317,17 @@ export default class Device extends RACDevice {
         this.HA.publishProperty(this.id, 'space_airflow_availability', cooling ? 'online' : 'offline')
         this.HA.publishProperty(this.id, 'quiet_availability', cooling ? 'online' : 'offline')
         this.HA.publishProperty(this.id, 'outlet_availability', off ? 'online' : 'offline')
+    }
+
+    private updateFanModeOptions() {
+        const profile = this.raw_clip_state[fields.mode] === 1 ? 'dry' : 'levels'
+        if (profile === this.fanModeProfile) return
+        this.fanModeProfile = profile
+        if (!this.config) return
+
+        const climate = this.config.components.climate as unknown as Record<string, unknown>
+        climate.fan_modes = profile === 'dry' ? ['자동'] : ['1단', '2단', '3단', '4단', '5단']
+        this.publishConfig()
     }
 
     setProperty(prop: string, value: string) {

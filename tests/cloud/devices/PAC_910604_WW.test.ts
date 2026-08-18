@@ -71,12 +71,30 @@ describe('PAC_910604_WW', () => {
             '100%',
         ])
         const climate = components.climate as unknown as Record<string, unknown>
-        assert.deepEqual(climate.fan_modes, ['자동', '1단', '2단', '3단', '4단', '5단'])
+        assert.deepEqual(climate.fan_modes, ['1단', '2단', '3단', '4단', '5단'])
         assert.deepEqual(climate.swing_modes, ['집중', '분리', '와이드', '좌', '우'])
         assert.equal(climate.swing_horizontal_modes, undefined)
         assert.equal((components.quiet as { name: string }).name, '저소음 냉방')
         assert.equal((components.outlet as { name: string }).name, '토출구 열기')
         assert.equal(components.airflow_direction, undefined)
+        dev.drop()
+    })
+    test('changes the fan mode list for dry while retaining it when powered off', () => {
+        const { ha, dev } = makeDevice()
+        const climate = () =>
+            ha.devices[DEVICE_ID].config!.components.climate as unknown as Record<string, unknown>
+
+        dev.processKeyValue(0x1f9, 1)
+        assert.deepEqual(climate().fan_modes, ['자동'])
+
+        dev.processKeyValue(0x1f7, 0)
+        assert.deepEqual(climate().fan_modes, ['자동'])
+
+        dev.processKeyValue(0x1f9, 0)
+        assert.deepEqual(climate().fan_modes, ['1단', '2단', '3단', '4단', '5단'])
+
+        dev.processKeyValue(0x1f9, 2)
+        assert.deepEqual(climate().fan_modes, ['1단', '2단', '3단', '4단', '5단'])
         dev.drop()
     })
     test('decodes A8 sensors and A7 temperature', () => {

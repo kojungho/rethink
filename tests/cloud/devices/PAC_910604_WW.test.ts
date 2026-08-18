@@ -71,6 +71,7 @@ describe('PAC_910604_WW', () => {
             '100%',
         ])
         const climate = components.climate as unknown as Record<string, unknown>
+        assert.deepEqual(climate.fan_modes, ['자동', '1단', '2단', '3단', '4단', '5단'])
         assert.deepEqual(climate.swing_modes, ['집중', '분리', '와이드', '좌', '우'])
         assert.equal(climate.swing_horizontal_modes, undefined)
         assert.equal((components.quiet as { name: string }).name, '저소음 냉방')
@@ -82,6 +83,7 @@ describe('PAC_910604_WW', () => {
         const { ha, thinq, dev } = makeDevice()
         thinq.emit('data', COOL_STATUS)
         assert.equal(ha.getProperty(DEVICE_ID, 'climate', 'current_temperature'), 27.5)
+        assert.equal(ha.getProperty(DEVICE_ID, 'climate', 'fan_mode_state'), '3단')
         assert.equal(ha.devices[DEVICE_ID].properties.humidity, 67)
         assert.equal(ha.devices[DEVICE_ID].properties.pm1, 4)
         assert.equal(ha.devices[DEVICE_ID].properties.pm2_5, 4)
@@ -95,6 +97,10 @@ describe('PAC_910604_WW', () => {
         const { ha, thinq, dev } = makeDevice()
         ha.setProperty(DEVICE_ID, 'ai_dry', 'command', '5단')
         assert.match(thinq.outbox.at(-1)!.toString('hex'), /8390ff7c86/i)
+        ha.setProperty(DEVICE_ID, 'climate', 'fan_mode_command', '1단')
+        assert.match(thinq.outbox.at(-1)!.toString('hex'), /7e82/i)
+        ha.setProperty(DEVICE_ID, 'climate', 'fan_mode_command', '5단')
+        assert.match(thinq.outbox.at(-1)!.toString('hex'), /7e86/i)
         ha.setProperty(DEVICE_ID, 'ai_dry', 'command', '꺼짐')
         assert.match(thinq.outbox.at(-1)!.toString('hex'), /8380/i)
         ha.setProperty(DEVICE_ID, 'outlet', 'command', 'ON')

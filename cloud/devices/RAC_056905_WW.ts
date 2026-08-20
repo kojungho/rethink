@@ -293,7 +293,7 @@ export default class Device extends TLVDevice {
                     preset_mode_state_topic: '$this/climate-preset_mode',
                     preset_mode_command_topic: '$this/climate-preset_mode/set',
                     /* TODO: get from 0x2c2 */
-                    fan_modes: ['자동', '0단', '1단', '2단', '3단', '4단', '5단', '자연풍'],
+                    fan_modes: ['자동', '1단', '2단', '3단', '4단', '5단', '자연풍'],
                     /* TODO: get allowed op modes from 0x2c1 */
                 } satisfies ClimateComponent,
             },
@@ -386,7 +386,6 @@ export default class Device extends TLVDevice {
             comp: 'climate',
             read_xform: (raw) => {
                 const modes2ha: Record<number, string> = {
-                    1: '0단',
                     2: '1단',
                     3: '2단',
                     4: '3단',
@@ -399,7 +398,6 @@ export default class Device extends TLVDevice {
             },
             write_xform: (val) => {
                 const modes2clip: Record<string, number> = {
-                    '0단': 1,
                     '1단': 2,
                     '2단': 3,
                     '3단': 4,

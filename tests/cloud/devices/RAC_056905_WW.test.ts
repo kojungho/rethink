@@ -101,6 +101,7 @@ describe(MODEL_ID, () => {
         // Direction controls are integrated into the climate entity.
         assert.deepEqual(components.climate.modes, ['off', 'cool', 'dry', 'fan_only'])
         assert.deepEqual(components.climate.preset_modes, ['공기 청정'])
+        assert.deepEqual(components.climate.fan_modes, ['자동', '0단', '1단', '2단', '3단', '4단', '5단', '자연풍'])
         assert.deepEqual(components.climate.swing_modes, [
             '1(상)',
             '2',
@@ -166,6 +167,25 @@ describe(MODEL_ID, () => {
 
         assert.equal(thinq.outbox.length, 1)
         assert.equal(hex(thinq.outbox[0]), WRITE_MODE_FAN_ONLY_HEX.toUpperCase())
+
+        dev.drop()
+    })
+
+    test('ultra-low and natural-wind fan modes map to protocol values 1 and 16', (t) => {
+        const { thinq, dev, ha } = buildReadyDevice(t)
+
+        dev.processKeyValue(0x1fa, 1)
+        assert.equal(ha.getProperty(DEVICE_ID, 'climate', 'fan_mode_state'), '0단')
+        dev.processKeyValue(0x1fa, 16)
+        assert.equal(ha.getProperty(DEVICE_ID, 'climate', 'fan_mode_state'), '자연풍')
+
+        thinq.resetRecorder()
+        ha.setProperty(DEVICE_ID, 'climate', 'fan_mode_command', '0단')
+        assert.match(hex(thinq.outbox[0]), /7E81/i)
+
+        thinq.resetRecorder()
+        ha.setProperty(DEVICE_ID, 'climate', 'fan_mode_command', '자연풍')
+        assert.match(hex(thinq.outbox[0]), /7E9010/i)
 
         dev.drop()
     })

@@ -293,7 +293,7 @@ export default class Device extends TLVDevice {
                     preset_mode_state_topic: '$this/climate-preset_mode',
                     preset_mode_command_topic: '$this/climate-preset_mode/set',
                     /* TODO: get from 0x2c2 */
-                    fan_modes: ['자동', '1단', '2단', '3단', '4단', '5단', '자연풍'],
+                    fan_modes: ['0단', '1단', '2단', '3단', '4단', '5단', '자연풍'],
                     /* TODO: get allowed op modes from 0x2c1 */
                 } satisfies ClimateComponent,
             },
@@ -391,8 +391,8 @@ export default class Device extends TLVDevice {
                     4: '3단',
                     5: '4단',
                     6: '5단',
-                    8: '자동',
-                    16: '자연풍',
+                    8: '자연풍',
+                    16: '0단',
                 }
                 return modes2ha[raw]
             },
@@ -403,8 +403,8 @@ export default class Device extends TLVDevice {
                     '3단': 4,
                     '4단': 5,
                     '5단': 6,
-                    자동: 8,
-                    자연풍: 16,
+                    자연풍: 8,
+                    '0단': 16,
                 }
                 return modes2clip[val]
             },

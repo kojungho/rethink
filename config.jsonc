@@ -39,5 +39,10 @@
     "storage_path": "./state"
   },
 
+  "dnat": {
+    "enabled": false,
+    "dns_servers": ["1.1.1.1", "8.8.8.8"]
+  },
+
   "log": ["status", "incoming", "HTTPS", "publish", "MGMT"]
 }

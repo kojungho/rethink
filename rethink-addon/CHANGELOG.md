@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.34
+
+### Added
+
+- LG 공식 DNS 응답을 유지하는 DNAT 모드를 추가했습니다.
+- HTTPS 및 MQTT 연결에 SNI별 서버 인증서를 동적으로 발급합니다.
+
+### Security
+
+- ThinQ 2 bridge 활성화 시 기존 LG 계정의 기기를 삭제하거나 `initDevice=true`로 재등록하지 않습니다.
+- 검증되지 않은 파괴적 등록을 막기 위해 ThinQ 1 bridge 활성화를 차단합니다.
+
 ## 0.1.1
 
 ### Added

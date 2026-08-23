@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.35
+
+### Changed
+
+- 기존 Rethink 애드온과 안전하게 병행 설치할 수 있도록 애드온 식별자를 `rethink_dnat`으로 분리했습니다.
+- Home Assistant 표시 이름을 `Rethink DNAT`으로 변경했습니다.
+
 ## 0.1.34
 
 ### Added

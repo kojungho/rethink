@@ -83,10 +83,39 @@ export class CaptureWriter {
 export function createCapture(captureDir: string, deviceId: string) {
     fs.mkdirSync(captureDir, { recursive: true, mode: 0o700 })
     const safeDeviceId = deviceId.replace(/[^a-zA-Z0-9_-]/g, '_')
-    const filename = `capture-${safeDeviceId}-${Date.now()}.jsonl`
+    const created = new Date().toISOString().replace(/[-:]/g, '').replace('.', '').replace(/Z$/, 'Z')
+    const filename = `capture-${safeDeviceId}-${created}.jsonl`
     return { filename, writer: new CaptureWriter(path.join(captureDir, filename), deviceId) }
 }
 
+export function captureLabel(note: string) {
+    return Array.from(
+        note
+            .normalize('NFKC')
+            .trim()
+            .replace(/[^\p{L}\p{N}]+/gu, '-')
+            .replace(/^-+|-+$/g, ''),
+    )
+        .slice(0, 48)
+        .join('')
+}
+
+export function labelCapture(captureDir: string, filename: string, note?: string) {
+    const label = note ? captureLabel(note) : ''
+    if (!label || !isCaptureFilename(filename)) return filename
+
+    const stem = filename.slice(0, -'.jsonl'.length)
+    let next = `${stem}-${label}.jsonl`
+    for (let suffix = 2; fs.existsSync(path.join(captureDir, next)); suffix++) {
+        next = `${stem}-${label}-${suffix}.jsonl`
+    }
+    fs.renameSync(path.join(captureDir, filename), path.join(captureDir, next))
+    return next
+}
+
 export function isCaptureFilename(filename: string) {
-    return /^capture-[a-zA-Z0-9_-]+-\d+\.jsonl$/.test(filename)
+    return (
+        /^capture-[a-zA-Z0-9_-]+-\d+\.jsonl$/.test(filename) ||
+        /^capture-[a-zA-Z0-9_-]+-\d{8}T\d{9}Z(?:-[\p{L}\p{N}_-]+)?\.jsonl$/u.test(filename)
+    )
 }

@@ -211,6 +211,23 @@ function addCaptureLink(filename, size) {
     link.download = filename
     link.innerText = filename + (size === undefined ? '' : ` (${Math.ceil(size / 1024)} KiB)`)
     row.appendChild(link)
+    const remove = document.createElement('button')
+    remove.type = 'button'
+    remove.className = 'btn-flat btn-small red-text capture_delete'
+    remove.innerText = rethinkI18n.t('capture.delete', 'Delete')
+    remove.onclick = async () => {
+        if (!window.confirm(rethinkI18n.t('capture.delete_confirm', `Delete ${filename}?`))) return
+        remove.disabled = true
+        try {
+            const response = await fetch(captureUrl(`capture/${encodeURIComponent(filename)}`), { method: 'DELETE' })
+            if (response.ok) row.remove()
+            else throw new Error(`${response.status}`)
+        } catch {
+            remove.disabled = false
+            window.alert(rethinkI18n.t('capture.delete_failed', 'Could not delete the capture file.'))
+        }
+    }
+    row.appendChild(remove)
     get('capture_files').prepend(row)
 }
 

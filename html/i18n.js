@@ -78,6 +78,9 @@
         'capture.stopped': '중지됨',
         'capture.recording': '기록 중',
         'capture.error': '오류',
+        'capture.delete': '삭제',
+        'capture.delete_confirm': '이 캡처 파일을 삭제할까요?',
+        'capture.delete_failed': '캡처 파일을 삭제하지 못했습니다.',
     }
 
     const useKorean = (navigator.language || '').toLowerCase().startsWith('ko')

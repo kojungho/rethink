@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
-import { createCapture, isCaptureFilename } from '@/util/capture'
+import { captureLabel, createCapture, isCaptureFilename, labelCapture } from '@/util/capture'
 
 test('capture writer records decoded wire events, markers, and notes as JSONL', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rethink-capture-'))
@@ -37,6 +37,23 @@ test('capture writer records decoded wire events, markers, and notes as JSONL', 
 
 test('capture filenames reject path traversal and unrelated files', () => {
     assert.equal(isCaptureFilename('capture-device-1-123.jsonl'), true)
+    assert.equal(isCaptureFilename('capture-device-1-20260823T234636123Z-자동-건조-켬.jsonl'), true)
     assert.equal(isCaptureFilename('../capture-device-1-123.jsonl'), false)
     assert.equal(isCaptureFilename('options.json'), false)
+})
+
+test('capture labels preserve readable Korean and rename a closed capture', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rethink-capture-label-'))
+    try {
+        const { filename, writer } = createCapture(dir, 'device-1')
+        await writer.close()
+        const labelled = labelCapture(dir, filename, '자동 건조 켬 / 1회')
+
+        assert.equal(captureLabel('자동 건조 켬 / 1회'), '자동-건조-켬-1회')
+        assert.match(labelled, /-자동-건조-켬-1회\.jsonl$/)
+        assert.equal(fs.existsSync(path.join(dir, filename)), false)
+        assert.equal(fs.existsSync(path.join(dir, labelled)), true)
+    } finally {
+        fs.rmSync(dir, { recursive: true, force: true })
+    }
 })

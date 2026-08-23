@@ -131,10 +131,13 @@ test('device monitor records, annotates, lists, and downloads a capture', async 
 
         const stopped = nextJson(ws, (message) => message.capture?.active === false)
         ws.send(JSON.stringify({ captureStop: true }))
-        await stopped
+        const finalFilename = (await stopped).capture.filename
+
+        assert.match(finalFilename, /^capture-device-1-\d{8}T\d{9}Z-Power-button-pressed\.jsonl$/)
+        assert.equal(fs.existsSync(path.join(captureDir, filename)), false)
 
         const events = fs
-            .readFileSync(path.join(captureDir, filename), 'utf8')
+            .readFileSync(path.join(captureDir, finalFilename), 'utf8')
             .trim()
             .split('\n')
             .map((line) => JSON.parse(line))
@@ -154,10 +157,16 @@ test('device monitor records, annotates, lists, and downloads a capture', async 
 
         const listResponse = await fetch(`http://127.0.0.1:${port}/captures?id=device-1`)
         const list = await listResponse.json()
-        assert.equal(list.captures[0].filename, filename)
-        const downloadResponse = await fetch(`http://127.0.0.1:${port}/capture/${filename}`)
+        assert.equal(list.captures[0].filename, finalFilename)
+        const downloadResponse = await fetch(`http://127.0.0.1:${port}/capture/${finalFilename}`)
         assert.equal(downloadResponse.status, 200)
         assert.match(await downloadResponse.text(), /"k":"session"/)
+
+        const deleteResponse = await fetch(`http://127.0.0.1:${port}/capture/${finalFilename}`, {
+            method: 'DELETE',
+        })
+        assert.equal(deleteResponse.status, 204)
+        assert.equal(fs.existsSync(path.join(captureDir, finalFilename)), false)
     } finally {
         ws.close()
         await new Promise<void>((resolve, reject) => {

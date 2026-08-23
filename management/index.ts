@@ -4,7 +4,7 @@ import path from 'path'
 import fs from 'node:fs'
 import { fileURLToPath } from 'url'
 import log from '@/util/logging'
-import { CaptureWriter, createCapture, isCaptureFilename } from '@/util/capture'
+import { CaptureWriter, createCapture, isCaptureFilename, labelCapture } from '@/util/capture'
 
 import HA_bridge from '@/cloud/ha_bridge'
 import { AnyDevice, DeviceManager } from '@/cloud/devmgr'
@@ -22,6 +22,7 @@ export function app(
     const app = new WebSocketExpress()
     const subscribers = new Set<ExtendedWebSocket>()
     const deviceMonitors = new Map<ExtendedWebSocket, () => void>()
+    const activeCaptureFiles = new Set<string>()
     const disposers: Array<() => void> = []
     let shuttingDown = false
 
@@ -235,6 +236,24 @@ export function app(
         })
     })
 
+    app.delete('/capture/:filename', (req, res) => {
+        const filename = req.params.filename
+        if (!isCaptureFilename(filename)) {
+            res.status(400).json({ error: 'invalid capture filename' })
+            return
+        }
+        if (activeCaptureFiles.has(filename)) {
+            res.status(409).json({ error: 'capture is still active' })
+            return
+        }
+
+        fs.unlink(path.join(captureDir, filename), (error) => {
+            if (!error) res.status(204).end()
+            else if ((error as NodeJS.ErrnoException).code === 'ENOENT') res.status(404).end()
+            else res.status(500).json({ error: 'capture delete failed' })
+        })
+    })
+
     // device monitoring
     app.ws('/device', (req, res, next) => {
         const id = req.query?.id
@@ -250,7 +269,7 @@ export function app(
             }
             let injectFlag = false
             let device: AnyDevice | undefined
-            let capture: { filename: string; writer: CaptureWriter } | undefined
+            let capture: { filename: string; writer: CaptureWriter; label?: string } | undefined
             const onDeviceRx = (arg: Buffer, mapped: boolean) => {
                 capture?.writer.recordWire('fromDevice', arg.toString('hex'), injectFlag, mapped)
                 safeSend(ws, JSON.stringify({ rx: arg.toString('hex'), injected: injectFlag, mapped }))
@@ -272,10 +291,13 @@ export function app(
                 if (!current) return
                 current.writer.close(phase).then(
                     () => {
+                        activeCaptureFiles.delete(current.filename)
+                        current.filename = labelCapture(captureDir, current.filename, current.label)
                         if (notify)
                             safeSend(ws, JSON.stringify({ capture: { active: false, filename: current.filename } }))
                     },
                     (error) => {
+                        activeCaptureFiles.delete(current.filename)
                         log('MGMT', id, `capture close error: ${error}`)
                         if (notify) safeSend(ws, JSON.stringify({ capture: { active: false, error: `${error}` } }))
                     },
@@ -322,6 +344,7 @@ export function app(
                     if (json.captureStart === true) {
                         if (!capture) {
                             capture = createCapture(captureDir, id)
+                            activeCaptureFiles.add(capture.filename)
                             capture.writer.marker(dev ? 'online' : 'offline', dev?.meta)
                         }
                         safeSend(ws, JSON.stringify({ capture: { active: true, filename: capture.filename } }))
@@ -329,6 +352,7 @@ export function app(
 
                     if (typeof json.captureNote === 'string' && capture) {
                         capture.writer.note(json.captureNote)
+                        if (!capture.label && json.captureNote.trim()) capture.label = json.captureNote
                         safeSend(ws, JSON.stringify({ capture: { active: true, noteSaved: true } }))
                     }
 

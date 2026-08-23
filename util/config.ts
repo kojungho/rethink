@@ -13,6 +13,10 @@ export type RawConfig = {
     bridge?: {
         storage_path: string
     }
+    dnat?: {
+        enabled: boolean
+        dns_servers?: string[]
+    }
     log?: string[]
 }
 
@@ -30,6 +34,10 @@ export type Config = {
     mqtt: boolean
     bridge?: {
         storage_path: string
+    }
+    dnat?: {
+        enabled: boolean
+        dns_servers: string[]
     }
     log: string[]
 }
@@ -64,6 +72,9 @@ export function normalize(config: RawConfig): Config {
         log: ['status', 'incoming', 'HTTPS'],
         mqtt: true,
         ...config,
+        dnat: config.dnat
+            ? { enabled: config.dnat.enabled, dns_servers: config.dnat.dns_servers ?? ['1.1.1.1', '8.8.8.8'] }
+            : undefined,
         https_port: parsePort(config.https_port),
         mqtts_port: parsePort(config.mqtts_port),
         mqtt_port: parsePort(config.mqtt_port),

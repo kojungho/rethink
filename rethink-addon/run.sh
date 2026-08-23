@@ -79,6 +79,7 @@ jq -n \
         thinq1_port: 47878,
         management_port: 44401,
         bridge: { storage_path: "state" },
+        dnat: { enabled: true, dns_servers: ["1.1.1.1", "8.8.8.8"] },
         log: ["status", "incoming", "HTTPS", "publish", "MGMT"]
     }' > "$RUNTIME_CONFIG_TMP"
 

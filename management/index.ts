@@ -1,8 +1,10 @@
 import { WebSocketExpress, ExtendedWebSocket } from 'websocket-express'
 
 import path from 'path'
+import fs from 'node:fs'
 import { fileURLToPath } from 'url'
 import log from '@/util/logging'
+import { CaptureWriter, createCapture, isCaptureFilename } from '@/util/capture'
 
 import HA_bridge from '@/cloud/ha_bridge'
 import { AnyDevice, DeviceManager } from '@/cloud/devmgr'
@@ -11,7 +13,12 @@ import { Request, Response } from 'express'
 import { Device as T1Device } from '@/cloud/thinq1/device'
 import { Device as T2Device } from '@/cloud/thinq2/device'
 
-export function app(ha: HA_bridge, manager: DeviceManager, bridge: Bridge | undefined) {
+export function app(
+    ha: HA_bridge,
+    manager: DeviceManager,
+    bridge: Bridge | undefined,
+    captureDir = process.env.RETHINK_CAPTURE_DIR ?? path.join(process.cwd(), 'captures'),
+) {
     const app = new WebSocketExpress()
     const subscribers = new Set<ExtendedWebSocket>()
     const deviceMonitors = new Map<ExtendedWebSocket, () => void>()
@@ -192,6 +199,42 @@ export function app(ha: HA_bridge, manager: DeviceManager, bridge: Bridge | unde
         if (bridge) return { loggedIn: bridge.isLoggedIn() }
     }
 
+    app.get('/captures', (req, res) => {
+        const id = req.query?.id
+        if (typeof id !== 'string') {
+            res.status(400).json({ error: 'device id is required' })
+            return
+        }
+
+        const safeId = id.replace(/[^a-zA-Z0-9_-]/g, '_')
+        fs.mkdirSync(captureDir, { recursive: true, mode: 0o700 })
+        const captures = fs
+            .readdirSync(captureDir, { withFileTypes: true })
+            .filter(
+                (entry) =>
+                    entry.isFile() && entry.name.startsWith(`capture-${safeId}-`) && isCaptureFilename(entry.name),
+            )
+            .map((entry) => {
+                const stat = fs.statSync(path.join(captureDir, entry.name))
+                return { filename: entry.name, size: stat.size, modified: stat.mtimeMs }
+            })
+            .sort((a, b) => b.modified - a.modified)
+            .slice(0, 20)
+        res.json({ captures })
+    })
+
+    app.get('/capture/:filename', (req, res) => {
+        const filename = req.params.filename
+        if (!isCaptureFilename(filename)) {
+            res.status(400).end()
+            return
+        }
+
+        res.download(path.join(captureDir, filename), filename, (error) => {
+            if (error && !res.headersSent) res.status(404).end()
+        })
+    })
+
     // device monitoring
     app.ws('/device', (req, res, next) => {
         const id = req.query?.id
@@ -207,14 +250,36 @@ export function app(ha: HA_bridge, manager: DeviceManager, bridge: Bridge | unde
             }
             let injectFlag = false
             let device: AnyDevice | undefined
+            let capture: { filename: string; writer: CaptureWriter } | undefined
             const onDeviceRx = (arg: Buffer) => {
+                capture?.writer.recordWire('fromDevice', arg.toString('hex'), injectFlag)
                 safeSend(ws, JSON.stringify({ rx: arg.toString('hex'), injected: injectFlag }))
             }
 
             const onDeviceTx = (arg: Buffer | object) => {
-                if (Buffer.isBuffer(arg))
+                if (Buffer.isBuffer(arg)) {
+                    capture?.writer.recordWire('toDevice', arg.toString('hex'), injectFlag)
                     safeSend(ws, JSON.stringify({ tx: arg.toString('hex'), injected: injectFlag }))
-                else safeSend(ws, JSON.stringify({ tx: JSON.stringify(arg), injected: injectFlag }))
+                } else {
+                    capture?.writer.recordWire('toDevice', JSON.stringify(arg), injectFlag)
+                    safeSend(ws, JSON.stringify({ tx: JSON.stringify(arg), injected: injectFlag }))
+                }
+            }
+
+            const stopCapture = (phase: string, notify: boolean) => {
+                const current = capture
+                capture = undefined
+                if (!current) return
+                current.writer.close(phase).then(
+                    () => {
+                        if (notify)
+                            safeSend(ws, JSON.stringify({ capture: { active: false, filename: current.filename } }))
+                    },
+                    (error) => {
+                        log('MGMT', id, `capture close error: ${error}`)
+                        if (notify) safeSend(ws, JSON.stringify({ capture: { active: false, error: `${error}` } }))
+                    },
+                )
             }
 
             const checkDevicePresence = () => {
@@ -227,10 +292,12 @@ export function app(ha: HA_bridge, manager: DeviceManager, bridge: Bridge | unde
                     device = dev
                     if (device) {
                         safeSend(ws, JSON.stringify({ status: 'online', meta: device.meta }))
+                        capture?.writer.marker('online', device.meta)
                         device.on('data', onDeviceRx)
                         device.on('sendData', onDeviceTx)
                     } else {
                         safeSend(ws, JSON.stringify({ status: 'offline' }))
+                        capture?.writer.marker('offline')
                     }
                 }
             }
@@ -252,6 +319,21 @@ export function app(ha: HA_bridge, manager: DeviceManager, bridge: Bridge | unde
                 const dev = manager.allDevices[id]
 
                 try {
+                    if (json.captureStart === true) {
+                        if (!capture) {
+                            capture = createCapture(captureDir, id)
+                            capture.writer.marker(dev ? 'online' : 'offline', dev?.meta)
+                        }
+                        safeSend(ws, JSON.stringify({ capture: { active: true, filename: capture.filename } }))
+                    }
+
+                    if (typeof json.captureNote === 'string' && capture) {
+                        capture.writer.note(json.captureNote)
+                        safeSend(ws, JSON.stringify({ capture: { active: true, noteSaved: true } }))
+                    }
+
+                    if (json.captureStop === true) stopCapture('stopped', true)
+
                     if (typeof json.sendToDevice === 'object' && dev && dev instanceof T1Device) {
                         try {
                             injectFlag = true
@@ -285,6 +367,7 @@ export function app(ha: HA_bridge, manager: DeviceManager, bridge: Bridge | unde
 
             const cleanup = () => {
                 if (!deviceMonitors.delete(ws)) return
+                stopCapture('disconnected', false)
                 device?.removeListener('data', onDeviceRx)
                 device?.removeListener('sendData', onDeviceTx)
                 device = undefined

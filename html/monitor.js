@@ -2,9 +2,22 @@ document.addEventListener('DOMContentLoaded', function () {})
 
 let ws
 let reconnectTimer
+let activeCapture
 
-get('device_id').innerText = new URLSearchParams(window.location.search).get('id')
+const deviceId = new URLSearchParams(window.location.search).get('id')
+get('device_id').innerText = deviceId
 get('device_status').innerText = rethinkI18n.t('status.waiting', 'Waiting for rethink connection...')
+
+get('capture_start').onclick = () => {
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ captureStart: true }))
+}
+get('capture_stop').onclick = () => {
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ captureStop: true }))
+}
+get('capture_note_add').onclick = addCaptureNote
+get('capture_note').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') addCaptureNote()
+})
 
 // The socket lives at /device, a sibling of this page. Appending to the page's own path instead
 // asks for /monitordevice, which nothing serves.
@@ -32,11 +45,15 @@ function connect() {
         reconnectTimer = setTimeout(connect, retryDelay)
         retryDelay = 5000
         get('device_status').innerText = rethinkI18n.t('status.waiting', 'Waiting for rethink connection...')
+        get('capture_start').disabled = true
+        get('capture_stop').disabled = true
+        get('capture_note_add').disabled = true
     }
 
     ws.onopen = () => {
         retryDelay = 250
         get('device_status').innerText = rethinkI18n.t('status.offline', 'offline')
+        get('capture_start').disabled = false
     }
 
     ws.onmessage = (ev) => {
@@ -82,6 +99,23 @@ function connect() {
             if (json.meta) {
                 get('device_model').innerText = json.meta.modelId
             }
+
+            if (json.capture) {
+                if (json.capture.error) {
+                    setCaptureState(false)
+                    get('capture_status').innerText =
+                        `${rethinkI18n.t('capture.error', 'Error')}: ${json.capture.error}`
+                } else if (json.capture.active) {
+                    if (json.capture.filename) activeCapture = json.capture.filename
+                    setCaptureState(true)
+                    if (json.capture.noteSaved) get('capture_note').value = ''
+                } else {
+                    const filename = json.capture.filename || activeCapture
+                    setCaptureState(false)
+                    if (filename) addCaptureLink(filename)
+                    activeCapture = undefined
+                }
+            }
         }
     }
 }
@@ -115,4 +149,48 @@ function get(id) {
     return document.getElementById(id)
 }
 
+function addCaptureNote() {
+    const note = get('capture_note').value.trim()
+    if (note && ws?.readyState === WebSocket.OPEN && activeCapture) {
+        ws.send(JSON.stringify({ captureNote: note }))
+    }
+}
+
+function setCaptureState(active) {
+    get('capture_start').disabled = active || ws?.readyState !== WebSocket.OPEN
+    get('capture_stop').disabled = !active
+    get('capture_note_add').disabled = !active
+    get('capture_status').innerText = active
+        ? `${rethinkI18n.t('capture.recording', 'Recording')}: ${activeCapture}`
+        : rethinkI18n.t('capture.stopped', 'Stopped')
+}
+
+function captureUrl(path) {
+    return new URL(path, window.location.href)
+}
+
+function addCaptureLink(filename, size) {
+    if (get(`capture-${filename}`)) return
+    const row = document.createElement('div')
+    row.id = `capture-${filename}`
+    const link = document.createElement('a')
+    link.href = captureUrl(`capture/${encodeURIComponent(filename)}`)
+    link.download = filename
+    link.innerText = filename + (size === undefined ? '' : ` (${Math.ceil(size / 1024)} KiB)`)
+    row.appendChild(link)
+    get('capture_files').prepend(row)
+}
+
+async function loadCaptures() {
+    try {
+        const url = captureUrl('captures')
+        url.searchParams.set('id', deviceId)
+        const response = await fetch(url)
+        if (!response.ok) return
+        const body = await response.json()
+        for (const capture of body.captures ?? []) addCaptureLink(capture.filename, capture.size)
+    } catch {}
+}
+
 connect()
+loadCaptures()

@@ -93,6 +93,33 @@
             <span class="status_label">Status:</span> <span id="device_status" class="status_value"></span> <br />
         </div>
 
+        <div class="container">
+            <div class="card-panel" style="padding: 12px; margin-bottom: 4px">
+                <div class="flex_x">
+                    <strong class="flex_grow">Mapping capture</strong>
+                    <span id="capture_status">Stopped</span>&nbsp;
+                    <button disabled class="btn-small waves-effect waves-light" id="capture_start">
+                        Start <i class="material-icons right">fiber_manual_record</i>
+                    </button>
+                    &nbsp;
+                    <button disabled class="btn-small waves-effect waves-light red" id="capture_stop">
+                        Stop <i class="material-icons right">stop</i>
+                    </button>
+                </div>
+                <div class="flex_x">
+                    <div class="input-field flex_grow" style="margin-bottom: 0">
+                        <input id="capture_note" type="text" maxlength="500" />
+                        <label for="capture_note">Annotation (for example: Auto Dry turned on)</label>
+                    </div>
+                    &nbsp;
+                    <button disabled class="btn-small waves-effect waves-light" id="capture_note_add">
+                        Add note <i class="material-icons right">note_add</i>
+                    </button>
+                </div>
+                <div id="capture_files"></div>
+            </div>
+        </div>
+
         <div class="reduced_margins container flex_y flex_grow" style="overflow: hidden">
             <h4 class="header orange-text">
                 Messages

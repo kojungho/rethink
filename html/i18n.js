@@ -44,6 +44,12 @@
         'Send to device': '기기로 보내기',
         Send: '보내기',
         'Inject from device': '기기에서 보낸 것으로 주입',
+        'Mapping capture': '맵핑 캡처',
+        Stopped: '중지됨',
+        Start: '시작',
+        Stop: '중지',
+        'Annotation (for example: Auto Dry turned on)': '메모 (예: 자동건조 켬)',
+        'Add note': '메모 추가',
     }
 
     const keyedKo = {
@@ -66,6 +72,9 @@
         'status.offline': '오프라인',
         'error.http': 'HTTP 오류',
         'error.fetch': '통신 오류',
+        'capture.stopped': '중지됨',
+        'capture.recording': '기록 중',
+        'capture.error': '오류',
     }
 
     const useKorean = (navigator.language || '').toLowerCase().startsWith('ko')

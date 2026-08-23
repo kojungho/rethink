@@ -207,22 +207,10 @@ export class Bridge extends TypedEmitter<BridgeEvents> {
         const client = new ThinqClient(creds.env)
         await client.auth(creds.refreshToken)
 
-        statusCallback('Removing device from home')
-        await client.removeDevice(device.id)
-
         let clientDevice: Thinq1Device | Thinq2Device
 
         if (device.platform === 'thinq1') {
-            const gateway = await client.gateway
-            const state = {
-                httpServer: gateway.thinq1Uri.replace(/\/api$/, ''),
-                rtiServer: gateway.rtiUri,
-            }
-
-            clientDevice = new Thinq1Device(device.id, device.meta, state)
-            statusCallback('Adding device to home')
-
-            await client.addDevice(clientDevice, `Rethink ${device.id.substring(0, 8)}`, deviceType)
+            throw new Error('Safe bridge mode currently supports ThinQ2 devices only')
         } else if (device.platform === 'thinq2') {
             statusCallback('Fetching otp key')
             const otp = await client.prepareNewT2Device()

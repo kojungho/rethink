@@ -249,13 +249,8 @@ export class Client {
             })
         } catch (err) {
             if (err instanceof RemoteError && err.resultCode === ErrorCodes.ERROR_ALREADY_DEVICES_REGISTERED_IN_HOME) {
-                console.log('Device already registered, retrying with initDevice=true')
-                body.initDevice = true
-                await apiFetch(`${thinq2Uri}/service/homes/${this.homeId}/devices`, {
-                    headers: this.headers,
-                    method: 'POST',
-                    body: JSON.stringify(body),
-                })
+                console.log('Device is already registered; preserving the existing ThinQ account registration')
+                return
             } else {
                 throw err
             }

@@ -30,9 +30,9 @@ export class CaptureWriter {
         if (trimmed) this.emit({ k: 'note', author: 'human', text: trimmed })
     }
 
-    recordWire(dir: 'fromDevice' | 'toDevice', raw: string, injected: boolean) {
+    recordWire(dir: 'fromDevice' | 'toDevice', raw: string, injected: boolean, mapped?: boolean) {
         if (!/^[0-9a-fA-F]*$/.test(raw)) {
-            this.emit({ k: 'wire', dir, injected, raw })
+            this.emit({ k: 'wire', dir, injected, mapped, raw })
             return
         }
 
@@ -42,6 +42,7 @@ export class CaptureWriter {
                 k: 'wire',
                 dir,
                 injected,
+                mapped,
                 hex: raw,
                 protocol: 'tlv',
                 crcOk: decoded.crcOk,
@@ -53,13 +54,14 @@ export class CaptureWriter {
                 k: 'wire',
                 dir,
                 injected,
+                mapped,
                 hex: raw,
                 protocol: 'aabb',
                 checksumOk: decoded.checksumOk,
                 body: decoded.body,
             })
         } else {
-            this.emit({ k: 'wire', dir, injected, hex: raw, protocol: 'unknown' })
+            this.emit({ k: 'wire', dir, injected, mapped, hex: raw, protocol: 'unknown' })
         }
     }
 

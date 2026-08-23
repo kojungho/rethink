@@ -10,6 +10,10 @@ import log from '@/util/logging'
 import { Metadata } from '../thinq'
 
 type DeviceEvents = {
+    // Emitted before any model-specific decoder sees the packet. Monitoring and
+    // capture use this event so an unsupported/throwing decoder cannot hide wire data.
+    rawData: (packet: Buffer) => void
+    packetData: (packet: Buffer, mapped: boolean) => void
     data: (packet: Buffer) => void
     sendData: (buf: Buffer) => void
     close: () => void
@@ -18,6 +22,7 @@ type DeviceEvents = {
 export class Device extends TypedEmitter<DeviceEvents> {
     // this could be a stream but why bother...
     readonly platform = 'thinq2'
+    private currentPacketMapped = false
 
     constructor(
         readonly broker: Broker,
@@ -39,6 +44,20 @@ export class Device extends TypedEmitter<DeviceEvents> {
     send_packet(buf: Buffer) {
         this.emit('sendData', buf)
         this.send('packet', 1, buf.toString('hex'))
+    }
+
+    markCurrentPacketMapped() {
+        this.currentPacketMapped = true
+    }
+
+    receivePacket(buf: Buffer) {
+        this.currentPacketMapped = false
+        this.emit('rawData', buf)
+        try {
+            this.emit('data', buf)
+        } finally {
+            this.emit('packetData', buf, this.currentPacketMapped)
+        }
     }
 }
 
@@ -110,7 +129,7 @@ export class DeviceAcceptor extends TypedEmitter<DeviceAcceptorEvents> {
             if (payload.cmd === 'device_packet' && payload.did === client.deployMsg?.did) {
                 if (client.deviceObj) {
                     const buf = Buffer.from(payload.data as string, 'hex')
-                    client.deviceObj.emit('data', buf)
+                    client.deviceObj.receivePacket(buf)
                 }
             }
 

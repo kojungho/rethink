@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict'
-import { once } from 'node:events'
+import { EventEmitter, once } from 'node:events'
 import { createServer, connect, type Server } from 'node:net'
 import { after, before, test } from 'node:test'
 import { Connection } from '@/cloud/thinq1/connection'
+import { Device } from '@/cloud/thinq1/device'
+import type { Metadata } from '@/cloud/thinq'
 import { make } from '@/util/length_prefixed_frame'
 
 let server: Server
@@ -62,4 +64,19 @@ test('oversized and truncated real socket frames are contained', async () => {
     client.end()
     await once(client, 'close')
     assert.match(connectionErrors.at(-1)?.message ?? '', /Truncated/)
+})
+
+test('emits every raw appliance packet before model decoding', () => {
+    const connection = new EventEmitter() as unknown as Connection
+    const device = new Device(connection, 'device-1', { modelId: 'unknown' } as Metadata)
+    const packet = Buffer.from('01020304', 'hex')
+    let raw: Buffer | undefined
+
+    device.on('rawData', (value) => (raw = value))
+    device.on('data', () => {
+        throw new Error('unsupported model packet')
+    })
+
+    assert.throws(() => connection.emit('status', packet), /unsupported model packet/)
+    assert.deepEqual(raw, packet)
 })

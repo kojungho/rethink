@@ -251,18 +251,18 @@ export function app(
             let injectFlag = false
             let device: AnyDevice | undefined
             let capture: { filename: string; writer: CaptureWriter } | undefined
-            const onDeviceRx = (arg: Buffer) => {
-                capture?.writer.recordWire('fromDevice', arg.toString('hex'), injectFlag)
-                safeSend(ws, JSON.stringify({ rx: arg.toString('hex'), injected: injectFlag }))
+            const onDeviceRx = (arg: Buffer, mapped: boolean) => {
+                capture?.writer.recordWire('fromDevice', arg.toString('hex'), injectFlag, mapped)
+                safeSend(ws, JSON.stringify({ rx: arg.toString('hex'), injected: injectFlag, mapped }))
             }
 
             const onDeviceTx = (arg: Buffer | object) => {
                 if (Buffer.isBuffer(arg)) {
-                    capture?.writer.recordWire('toDevice', arg.toString('hex'), injectFlag)
-                    safeSend(ws, JSON.stringify({ tx: arg.toString('hex'), injected: injectFlag }))
+                    capture?.writer.recordWire('toDevice', arg.toString('hex'), injectFlag, !injectFlag)
+                    safeSend(ws, JSON.stringify({ tx: arg.toString('hex'), injected: injectFlag, mapped: !injectFlag }))
                 } else {
-                    capture?.writer.recordWire('toDevice', JSON.stringify(arg), injectFlag)
-                    safeSend(ws, JSON.stringify({ tx: JSON.stringify(arg), injected: injectFlag }))
+                    capture?.writer.recordWire('toDevice', JSON.stringify(arg), injectFlag, !injectFlag)
+                    safeSend(ws, JSON.stringify({ tx: JSON.stringify(arg), injected: injectFlag, mapped: !injectFlag }))
                 }
             }
 
@@ -286,14 +286,14 @@ export function app(
                 const dev = manager.allDevices[id]
 
                 if (dev !== device) {
-                    device?.removeListener('data', onDeviceRx)
+                    device?.removeListener('packetData', onDeviceRx)
                     device?.removeListener('sendData', onDeviceTx)
 
                     device = dev
                     if (device) {
                         safeSend(ws, JSON.stringify({ status: 'online', meta: device.meta }))
                         capture?.writer.marker('online', device.meta)
-                        device.on('data', onDeviceRx)
+                        device.on('packetData', onDeviceRx)
                         device.on('sendData', onDeviceTx)
                     } else {
                         safeSend(ws, JSON.stringify({ status: 'offline' }))
@@ -368,7 +368,7 @@ export function app(
             const cleanup = () => {
                 if (!deviceMonitors.delete(ws)) return
                 stopCapture('disconnected', false)
-                device?.removeListener('data', onDeviceRx)
+                device?.removeListener('packetData', onDeviceRx)
                 device?.removeListener('sendData', onDeviceTx)
                 device = undefined
                 manager.removeListener('newDevice', checkDevicePresence)

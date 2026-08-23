@@ -2,10 +2,21 @@ import { spawn } from 'node:child_process'
 import { Router } from 'express'
 import { CA, Config } from '@/util/config'
 import { ClipDeployMessage } from './clip'
+import { fetchOfficialRoute } from '@/util/dnat'
 
 export function routes(config: Config, ca: CA) {
     const router = Router()
-    router.get('/route', (req, res) => {
+    router.get('/route', async (req, res) => {
+        if (config.dnat?.enabled) {
+            try {
+                const hostname = req.hostname.toLowerCase().replace(/\.$/, '')
+                res.json(await fetchOfficialRoute(hostname, req.headers, config.dnat.dns_servers))
+            } catch (error) {
+                console.error('Unable to proxy official ThinQ route:', error)
+                res.status(502).json({ resultCode: 'DNAT_ROUTE_FAILED' })
+            }
+            return
+        }
         res.json({
             resultCode: '0000',
             result: {

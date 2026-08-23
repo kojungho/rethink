@@ -12,9 +12,19 @@
 
 When automatic discovery is enabled and an MQTT service is available, the discovered values take precedence. If discovery fails, Rethink uses the manual MQTT options. Disable automatic discovery to always use the manual values.
 
-## Network requirement
+## DNAT network mode
 
-The appliance must resolve the configured hostname to the Home Assistant host. Configure the local DNS server or router accordingly. Ports 443, 8883, 1884, 46030, and 47878 must be reachable by the appliance.
+This add-on uses DNAT mode by default. Do not rewrite LG cloud hostnames to the Home Assistant address. Configure the router to redirect only the selected appliance source addresses:
+
+- TCP 443 to the Home Assistant host on TCP 443.
+- TCP 8883 to the Home Assistant host on TCP 8883.
+- Apply source NAT/masquerading to both redirected flows so replies return through the router.
+
+The DNAT rules must be restricted to the LG appliance addresses. Never redirect TCP 443 or TCP 8883 for the whole LAN.
+
+Rethink obtains the official `/route` response using public DNS, while serving an SNI-specific certificate signed by the CA already trusted by the appliance. The `rethink.home.arpa` DNS rewrite is not required in DNAT mode.
+
+Bridge registration preserves the existing ThinQ account registration. ThinQ1 bridge activation is intentionally blocked because a non-destructive registration path has not been verified for that protocol.
 
 The management interface is available from the add-on page through **Open Web UI**.
 

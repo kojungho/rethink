@@ -180,6 +180,7 @@ export default class Device extends HADevice {
     publishCache: Record<string, string | number> = {}
 
     publishProperty(prop: string, value: string | number) {
+        this.thinq.markCurrentPacketMapped()
         if (this.publishCache[prop] === value) return
 
         this.publishCache[prop] = value

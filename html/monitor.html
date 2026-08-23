@@ -51,12 +51,34 @@
             .message.injected {
                 background: #c04040;
             }
+            .message.unmapped {
+                border: 2px solid #ef6c00;
+            }
+            .message.filtered_out {
+                display: none;
+            }
+            .message_filters {
+                display: flex;
+                gap: 4px;
+                flex-wrap: wrap;
+                margin: 0 0 6px;
+            }
+            .message_filters button.active {
+                background: #0288d1;
+                color: white;
+            }
 
             .message .timestamp {
                 background: #ffff80;
                 color: black;
                 margin: 0px 8px;
                 padding: 0px 4px;
+            }
+            .message .message_details {
+                display: block;
+                font-weight: 600;
+                opacity: 0.85;
+                margin-bottom: 2px;
             }
             .rx.message .timestamp {
                 float: left;
@@ -132,6 +154,17 @@
                     </span>
                 </div>
             </h4>
+            <div class="message_filters">
+                <button class="btn-small active" data-message-filter="all">
+                    <span>All</span> (<span id="count_all">0</span>)
+                </button>
+                <button class="btn-small grey" data-message-filter="mapped">
+                    <span>Mapped</span> (<span id="count_mapped">0</span>)
+                </button>
+                <button class="btn-small orange darken-2" data-message-filter="unmapped">
+                    <span>Unmapped</span> (<span id="count_unmapped">0</span>)
+                </button>
+            </div>
             <div class="flex_grow" id="messages"></div>
             <div class="flex_x">
                 <div class="input-field flex_grow">

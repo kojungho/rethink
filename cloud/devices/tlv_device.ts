@@ -272,6 +272,7 @@ export default class TLVDevice extends HADevice {
 
         const def = this.fields_by_id[k]
         if (!def) return
+        this.thinq.markCurrentPacketMapped()
 
         let processed: string | number = v
 

@@ -36,6 +36,7 @@ export default class AABBDevice extends HADevice {
 
     // to be called by processAABB
     publishProperty(prop: string, value: string | number) {
+        this.thinq.markCurrentPacketMapped()
         if (this.publishCache[prop] === value) return
 
         this.publishCache[prop] = value

@@ -43,7 +43,7 @@ test('device monitor detaches device and manager listeners after a real WebSocke
     await once(ws, 'open')
     await firstMessage
 
-    assert.equal(device.listenerCount('data'), 1)
+    assert.equal(device.listenerCount('packetData'), 1)
     assert.equal(device.listenerCount('sendData'), 1)
     assert.equal(manager.listenerCount('newDevice'), 2)
     assert.equal(manager.listenerCount('dropDevice'), 2)
@@ -51,7 +51,7 @@ test('device monitor detaches device and manager listeners after a real WebSocke
     ws.close()
     await once(ws, 'close')
 
-    assert.equal(device.listenerCount('data'), 0)
+    assert.equal(device.listenerCount('packetData'), 0)
     assert.equal(device.listenerCount('sendData'), 0)
     assert.equal(manager.listenerCount('newDevice'), 1)
     assert.equal(manager.listenerCount('dropDevice'), 1)
@@ -90,7 +90,7 @@ test('server shutdown closes a connected device monitor and detaches all listene
     })
     await Promise.all([websocketClosed, serverClosed])
 
-    assert.equal(device.listenerCount('data'), 0)
+    assert.equal(device.listenerCount('packetData'), 0)
     assert.equal(device.listenerCount('sendData'), 0)
     assert.equal(manager.listenerCount('newDevice'), 0)
     assert.equal(manager.listenerCount('dropDevice'), 0)
@@ -121,7 +121,11 @@ test('device monitor records, annotates, lists, and downloads a capture', async 
         ws.send(JSON.stringify({ captureStart: true }))
         const filename = (await started).capture.filename
 
-        device.emit('data', Buffer.from('AA2032EB001800000001270000000100000200000042804100000000000365BB', 'hex'))
+        const inbound = Buffer.from('AA2032EB001800000001270000000100000200000042804100000000000365BB', 'hex')
+        const firstRx = nextJson(ws, (message) => message.rx === inbound.toString('hex'))
+        device.emit('packetData', inbound, true)
+        device.emit('packetData', inbound, false)
+        await firstRx
         device.send_packet(Buffer.from('AA07F0261688BB', 'hex'))
         ws.send(JSON.stringify({ captureNote: 'Power button pressed' }))
 
@@ -134,9 +138,10 @@ test('device monitor records, annotates, lists, and downloads a capture', async 
             .trim()
             .split('\n')
             .map((line) => JSON.parse(line))
-        assert.equal(
-            events.some((event) => event.k === 'wire' && event.dir === 'fromDevice'),
-            true,
+        assert.equal(events.filter((event) => event.k === 'wire' && event.dir === 'fromDevice').length, 2)
+        assert.deepEqual(
+            events.filter((event) => event.k === 'wire' && event.dir === 'fromDevice').map((event) => event.mapped),
+            [true, false],
         )
         assert.equal(
             events.some((event) => event.k === 'wire' && event.dir === 'toDevice'),

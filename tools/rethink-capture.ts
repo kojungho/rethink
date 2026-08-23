@@ -65,8 +65,8 @@ ws.on('message', (data: WebSocket.RawData) => {
     } catch {
         return
     }
-    if (typeof msg.rx === 'string') recorder.recordWire('fromDevice', msg.rx, !!msg.injected)
-    else if (typeof msg.tx === 'string') recorder.recordWire('toDevice', msg.tx, !!msg.injected)
+    if (typeof msg.rx === 'string') recorder.recordWire('fromDevice', msg.rx, !!msg.injected, msg.mapped)
+    else if (typeof msg.tx === 'string') recorder.recordWire('toDevice', msg.tx, !!msg.injected, msg.mapped)
     else if (msg.status) recorder.marker(msg.status, msg.meta)
 })
 

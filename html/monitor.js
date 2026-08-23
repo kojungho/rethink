@@ -3,10 +3,16 @@ document.addEventListener('DOMContentLoaded', function () {})
 let ws
 let reconnectTimer
 let activeCapture
+let messageSequence = 0
+let messageFilter = 'all'
+const messageCounts = { all: 0, mapped: 0, unmapped: 0 }
 
 const deviceId = new URLSearchParams(window.location.search).get('id')
 get('device_id').innerText = deviceId
 get('device_status').innerText = rethinkI18n.t('status.waiting', 'Waiting for rethink connection...')
+document.querySelectorAll('[data-message-filter]').forEach((button) => {
+    button.onclick = () => setMessageFilter(button.dataset.messageFilter)
+})
 
 get('capture_start').onclick = () => {
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ captureStart: true }))
@@ -60,7 +66,7 @@ function connect() {
         if (typeof ev.data === 'string') {
             const json = JSON.parse(ev.data)
             if (json.rx) {
-                const div = pushMessage('rx', json.rx, json.injected)
+                const div = pushMessage('rx', json.rx, json.injected, json.mapped)
                 div.onclick = () => {
                     get('send2').value = json.rx
                     M.updateTextFields()
@@ -68,7 +74,7 @@ function connect() {
             }
 
             if (json.tx) {
-                const div = pushMessage('tx', json.tx, json.injected)
+                const div = pushMessage('tx', json.tx, json.injected, json.mapped)
                 div.onclick = () => {
                     get('send1').value = json.tx
                     M.updateTextFields()
@@ -126,23 +132,50 @@ window.addEventListener('pageshow', (ev) => {
     if (ev.persisted) connect()
 })
 
-function pushMessage(direction, payload, injected) {
+function pushMessage(direction, payload, injected, mapped) {
     const timestamp = document.createElement('span')
     const messages = get('messages')
+    const hexPayload = typeof payload === 'string' && /^[0-9a-f]+$/i.test(payload) && payload.length % 2 === 0
+    const details = document.createElement('span')
 
     timestamp.innerText = new Date().toLocaleTimeString()
     timestamp.classList.add('timestamp')
+    messageSequence += 1
+    details.innerText = `#${messageSequence} ${direction.toUpperCase()}${hexPayload ? ` ${payload.length / 2} B` : ''}`
+    details.classList.add('message_details')
     const div = document.createElement('div')
     div.classList.add(direction, 'message')
+    const mappingClass = mapped === true ? 'mapped' : 'unmapped'
+    div.classList.add(mappingClass)
+    if (messageFilter !== 'all' && messageFilter !== mappingClass) div.classList.add('filtered_out')
     if (injected) div.classList.add('injected')
     div.innerText = payload
+    div.prepend(details)
     div.appendChild(timestamp)
 
     messages.appendChild(div)
+    messageCounts.all += 1
+    messageCounts[mappingClass] += 1
+    updateMessageCounts()
 
     if (get('autoscroll').checked) messages.scrollTop = messages.scrollHeight
 
     return div
+}
+
+function setMessageFilter(filter) {
+    if (!['all', 'mapped', 'unmapped'].includes(filter)) return
+    messageFilter = filter
+    document.querySelectorAll('[data-message-filter]').forEach((button) => {
+        button.classList.toggle('active', button.dataset.messageFilter === filter)
+    })
+    document.querySelectorAll('#messages .message').forEach((message) => {
+        message.classList.toggle('filtered_out', filter !== 'all' && !message.classList.contains(filter))
+    })
+}
+
+function updateMessageCounts() {
+    for (const filter of ['all', 'mapped', 'unmapped']) get(`count_${filter}`).innerText = messageCounts[filter]
 }
 
 function get(id) {

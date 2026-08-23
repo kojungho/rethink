@@ -10,6 +10,10 @@ type ConWithExtra = Connection & {
 }
 
 type DeviceEvents = {
+    // Emitted before any model-specific decoder sees the packet. Monitoring and
+    // capture use this event so an unsupported/throwing decoder cannot hide wire data.
+    rawData: (packet: Buffer) => void
+    packetData: (packet: Buffer, mapped: boolean) => void
     data: (packet: Buffer) => void
     sendData: (body: object) => void
     close: () => void
@@ -17,6 +21,7 @@ type DeviceEvents = {
 
 export class Device extends TypedEmitter<DeviceEvents> {
     readonly platform = 'thinq1'
+    private currentPacketMapped = false
 
     lastReport: Buffer | undefined
 
@@ -29,7 +34,13 @@ export class Device extends TypedEmitter<DeviceEvents> {
         con.deviceObj = this
         con.on('status', (packet) => {
             this.lastReport = packet
-            this.emit('data', packet)
+            this.currentPacketMapped = false
+            this.emit('rawData', packet)
+            try {
+                this.emit('data', packet)
+            } finally {
+                this.emit('packetData', packet, this.currentPacketMapped)
+            }
         })
         con.on('error', console.log)
         con.on('close', () => {
@@ -38,6 +49,10 @@ export class Device extends TypedEmitter<DeviceEvents> {
                 con.deviceObj = undefined
             }
         })
+    }
+
+    markCurrentPacketMapped() {
+        this.currentPacketMapped = true
     }
 
     send(body: object) {

@@ -72,6 +72,18 @@ describe('H01', () => {
         assert.equal(properties.buzzer, 'LOW')
     })
 
+    test('classifies repeated recognized packets as mapped and unknown packets as unmapped', () => {
+        const { thinq } = makeDevice()
+        const classifications: boolean[] = []
+        thinq.on('packetData', (_packet, mapped) => classifications.push(mapped))
+
+        thinq.receivePacket(buf(CAPTURED_STATUS))
+        thinq.receivePacket(buf(CAPTURED_STATUS))
+        thinq.receivePacket(buf('AA0631EB00BB'))
+
+        assert.deepEqual(classifications, [true, true, false])
+    })
+
     test('uses and fully decodes the current half of a 0x32ec status update', () => {
         const { ha, thinq } = makeDevice()
         const current = Buffer.alloc(24)

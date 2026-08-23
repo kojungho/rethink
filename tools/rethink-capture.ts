@@ -20,11 +20,10 @@
 // with an error rather than continuing a degraded capture.
 
 import WebSocket from 'ws'
-import * as fs from 'node:fs'
 import readline from 'node:readline'
-import { decodePacket } from '@/util/packet-codec'
 import { connect as connectCloud, login } from '@/util/lgcloud/monitor'
 import { loadState, saveState } from '@/util/lgcloud/state'
+import { CaptureWriter } from '@/util/capture'
 
 // minimal flag parse; the rest are positional
 //   --cloud         enable cloud correlation (logs in interactively if not already)
@@ -50,55 +49,14 @@ if (!hostArg || !deviceId) {
 
 const host = hostArg.includes(':') ? hostArg : `${hostArg}:44401`
 const out = outArg ?? `capture-${deviceId}-${Date.now()}.jsonl`
-const stream = fs.createWriteStream(out, { flags: 'a' })
-
-const SCHEMA_VERSION = 1
-function emit(event: object) {
-    stream.write(JSON.stringify({ ts: Date.now(), ...event }) + '\n')
-}
-
-emit({ k: 'session', v: SCHEMA_VERSION, deviceId, tool: 'rethink-capture/0.1' })
-
-// A `wire` event: decode the hex and fold the decoded view in, but keep the raw hex.
-function recordWire(dir: 'fromDevice' | 'toDevice', raw: string, injected: boolean) {
-    // Non-hex payloads (T1 object frames the WS stringifies) are stored verbatim.
-    if (!/^[0-9a-fA-F]*$/.test(raw)) {
-        emit({ k: 'wire', dir, injected, raw })
-        return
-    }
-    const decoded = decodePacket(raw)
-    if (decoded.protocol === 'tlv') {
-        emit({
-            k: 'wire',
-            dir,
-            injected,
-            hex: raw,
-            protocol: 'tlv',
-            crcOk: decoded.crcOk,
-            frame: decoded.frame,
-            tlv: decoded.tlv,
-        })
-    } else if (decoded.protocol === 'aabb') {
-        emit({
-            k: 'wire',
-            dir,
-            injected,
-            hex: raw,
-            protocol: 'aabb',
-            checksumOk: decoded.checksumOk,
-            body: decoded.body,
-        })
-    } else {
-        emit({ k: 'wire', dir, injected, hex: raw, protocol: 'unknown' })
-    }
-}
+const recorder = new CaptureWriter(out, deviceId, { append: true })
 
 const url = `ws://${host}/device?id=${encodeURIComponent(deviceId)}`
 console.error(`Connecting to ${url}\nWriting capture to ${out}`)
 
 const ws = new WebSocket(url)
 
-ws.on('open', () => emit({ k: 'marker', phase: 'connected' }))
+ws.on('open', () => recorder.marker('connected'))
 
 ws.on('message', (data: WebSocket.RawData) => {
     let msg: any
@@ -107,15 +65,13 @@ ws.on('message', (data: WebSocket.RawData) => {
     } catch {
         return
     }
-    if (typeof msg.rx === 'string') recordWire('fromDevice', msg.rx, !!msg.injected)
-    else if (typeof msg.tx === 'string') recordWire('toDevice', msg.tx, !!msg.injected)
-    else if (msg.status) emit({ k: 'marker', phase: msg.status, meta: msg.meta })
+    if (typeof msg.rx === 'string') recorder.recordWire('fromDevice', msg.rx, !!msg.injected)
+    else if (typeof msg.tx === 'string') recorder.recordWire('toDevice', msg.tx, !!msg.injected)
+    else if (msg.status) recorder.marker(msg.status, msg.meta)
 })
 
 ws.on('close', () => {
-    emit({ k: 'marker', phase: 'disconnected' })
-    stream.end()
-    process.exit(0)
+    recorder.close('disconnected').then(() => process.exit(0))
 })
 ws.on('error', (err) => {
     console.error('WebSocket error:', err.message)
@@ -123,8 +79,7 @@ ws.on('error', (err) => {
 })
 
 process.on('SIGINT', () => {
-    emit({ k: 'marker', phase: 'stopped' })
-    stream.end(() => process.exit(0))
+    recorder.close().then(() => process.exit(0))
 })
 
 // Begin reading stdin for note events. Called only AFTER any interactive cloud login has
@@ -133,7 +88,7 @@ function startNotes() {
     const rl = readline.createInterface({ input: process.stdin })
     rl.on('line', (line) => {
         const text = line.trim()
-        if (text) emit({ k: 'note', author: 'human', text })
+        if (text) recorder.note(text)
     })
     console.error('Type annotations and press enter; Ctrl-C to stop.')
 }
@@ -147,25 +102,25 @@ async function setupCloud() {
         console.error('[cloud] no stored credentials — logging in now (before note capture starts)')
         state = await login()
         saveState(state, statePath)
-        emit({ k: 'marker', phase: 'cloud-logged-in' })
+        recorder.marker('cloud-logged-in')
     }
     await connectCloud(state, {
         log: (m) => console.error(`[cloud] ${m}`),
         onMessage: ({ topic, payload, raw }) => {
             // best-effort attribution: does this notification mention our device?
             const matchesDevice = raw.includes(deviceId)
-            if (payload !== null) emit({ k: 'cloud', topic, matchesDevice, state: payload })
-            else emit({ k: 'cloud', topic, matchesDevice, text: raw })
+            if (payload !== null) recorder.event({ k: 'cloud', topic, matchesDevice, state: payload })
+            else recorder.event({ k: 'cloud', topic, matchesDevice, text: raw })
         },
     })
-    emit({ k: 'marker', phase: 'cloud-connected' })
+    recorder.marker('cloud-connected')
 }
 
 setupCloud().then(
     () => startNotes(),
     (err) => {
         console.error(`[cloud] login/connect failed: ${err.message}`)
-        emit({ k: 'marker', phase: 'cloud-failed', reason: err.message })
-        stream.end(() => process.exit(1))
+        recorder.marker('cloud-failed', { reason: err.message })
+        recorder.close('cloud-failed').then(() => process.exit(1))
     },
 )

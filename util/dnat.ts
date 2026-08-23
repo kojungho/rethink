@@ -1,4 +1,4 @@
-import { Resolver } from 'node:dns'
+import { Resolver } from 'node:dns/promises'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { request } from 'node:https'
 import { tmpdir } from 'node:os'
@@ -100,7 +100,7 @@ export async function fetchOfficialRoute(
     if (!addresses.length) throw new Error(`No IPv4 address returned for ${hostname}`)
 
     return await new Promise<unknown>((resolve, reject) => {
-        const forwardedHeaders = { ...headers, host: hostname }
+        const forwardedHeaders: Record<string, string | string[] | undefined> = { ...headers, host: hostname }
         delete forwardedHeaders.connection
         delete forwardedHeaders['content-length']
 

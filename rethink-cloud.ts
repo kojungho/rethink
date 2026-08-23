@@ -125,7 +125,9 @@ function t2setup(manager: DeviceManager) {
         res.end('')
     })
 
-    https.createServer({ ...ca, SNICallback: sniCallback }, app).listen(config.https_port.bind, config.https_port.address)
+    https
+        .createServer({ ...ca, SNICallback: sniCallback }, app)
+        .listen(config.https_port.bind, config.https_port.address)
 
     // internal MQTT broker
     const broker = new Broker()

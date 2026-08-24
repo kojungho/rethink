@@ -37,6 +37,12 @@ const QUERY_RESPONSE_HEX =
     'CC90438B40BF600155BFE00271BFA00155C0200271BE509FBE90A01B01BED050C300C340C0C0C380' +
     '3E6B'
 
+// Live comprehensive response with air-quality and direct filter-life fields:
+// PM1/PM2.5/PM10=8, total pollution=GOOD, remaining=780 h, total=1056 h.
+const AIR_QUALITY_QUERY_RESPONSE_HEX =
+    '0000040000008702045E9B' +
+    '7E427DC17E827F503A7F90327EC07F00C840C880C8C083408390FF83C0A880868086C0870087C18F8089407C86E880594088408A028A408A808CA0011B8CCCACD041CA00A041D560030CD5A00420C900CAC01E90B7CB40CB89CBC0CC10CCCC5046CC909C8B40E801FA80BF600238BFE00271BFA00238C0200271BE508CBE908C6240BED046C340C0C0EE40C380CCC8CD08CD4890014B414BC14CC1EE4B'
+
 // Bytes that the device sends in response to specific HA setProperty calls.
 const WRITE_MODE_FAN_ONLY_HEX = '01010400000065020101067E427E837F80B452'
 const WRITE_POWER_OFF_HEX = '01010400000065020101027DC00576'
@@ -91,7 +97,7 @@ describe(MODEL_ID, () => {
         // Capability bits from the captured caps response unlocked these optional components.
         assert.ok(components.jet, 'jet (because 0x2CD bits 0x1|0x2)')
         assert.ok(components.energysave, 'energysave (because 0x2CC bit 0x2)')
-        assert.ok(components.autodry, 'autodry (because 0x2CC bit 0x4)')
+        assert.ok(components.ai_dry_power, 'AI auto dry power')
         assert.ok(components.sleeptimer, 'sleeptimer (because 0x2D3 bit 0x1)')
         assert.ok(components.starttimer, 'starttimer (because 0x2D3 bit 0x4)')
         assert.ok(components.stoptimer, 'stoptimer (because 0x2D3 bit 0x4)')
@@ -141,10 +147,12 @@ describe(MODEL_ID, () => {
         assert.equal(ha.getProperty(DEVICE_ID, 'climate', 'current_temperature'), 20.5) // 0x29 / 2
         assert.equal(ha.getProperty(DEVICE_ID, 'climate', 'temperature_state'), 19) // 0x26 / 2
         assert.equal(ha.getProperty(DEVICE_ID, 'climate', 'fan_mode_state'), '2단') // 0x1FA=3
-        assert.equal(ha.getProperty(DEVICE_ID, 'climate', 'mode_state'), 'heat') // 0x1F9=4 with power=ON
-        assert.equal(ha.getProperty(DEVICE_ID, 'climate', 'swing_mode_state'), 'off') // 0x321=0
-        assert.equal(ha.getProperty(DEVICE_ID, 'climate', 'swing_horizontal_mode_state'), 'off') // 0x322=0
-        assert.equal(ha.getProperty(DEVICE_ID, 'autodry', 'state'), 'OFF') // 0x20E=0
+        // The model's official profile is cooling-only, so the generic heat
+        // value in this legacy sample is intentionally not exposed as a mode.
+        assert.equal(ha.getProperty(DEVICE_ID, 'climate', 'mode_state'), undefined)
+        assert.equal(ha.getProperty(DEVICE_ID, 'climate', 'swing_mode_state'), '정지') // 0x321=0
+        assert.equal(ha.getProperty(DEVICE_ID, 'climate', 'swing_horizontal_mode_state'), '정지') // 0x322=0
+        assert.equal(ha.getProperty(DEVICE_ID, 'ai_dry_power', 'state'), 'OFF') // 0x20E=0
         assert.equal(ha.getProperty(DEVICE_ID, 'sleeptimer', 'state'), 0) // 0x21A=0
         assert.equal(ha.getProperty(DEVICE_ID, 'starttimer', 'state'), 0) // 0x21C=0
         assert.equal(ha.getProperty(DEVICE_ID, 'stoptimer', 'state'), 0) // 0x21B=0
@@ -153,6 +161,33 @@ describe(MODEL_ID, () => {
         // energysave is mode-dependent (cool only). With mode=heat its read_callback returns false,
         // so it must NOT have been published.
         assert.ok(!ha.getProperty(DEVICE_ID, 'energysave', 'state'), 'energysave suppressed in heat mode')
+
+        dev.drop()
+    })
+
+    test('maps live air-quality and filter-life fields', (t) => {
+        enableMockTimers(t)
+        const { ha, thinq, dev } = makeDevice()
+        thinq.resetRecorder()
+
+        thinq.emit('data', buf(CAPS_RESPONSE_HEX))
+        thinq.emit('data', buf(AIR_QUALITY_QUERY_RESPONSE_HEX))
+        tickMockTimers(t, 6000)
+
+        const components = ha.devices[DEVICE_ID].config!.components as Record<string, Record<string, unknown>>
+        assert.equal(components.pm2_5.device_class, 'pm25')
+        assert.equal(components.pm10.device_class, 'pm10')
+        assert.equal(components.filter_remaining_time.device_class, 'duration')
+        assert.equal(components.filter_used_time.state_class, 'total_increasing')
+
+        thinq.emit('data', buf(AIR_QUALITY_QUERY_RESPONSE_HEX))
+        assert.equal(ha.getProperty(DEVICE_ID, 'pm1', 'state'), 8)
+        assert.equal(ha.getProperty(DEVICE_ID, 'pm2_5', 'state'), 8)
+        assert.equal(ha.getProperty(DEVICE_ID, 'pm10', 'state'), 8)
+        assert.equal(ha.getProperty(DEVICE_ID, 'air_quality', 'state'), '좋음')
+        assert.equal(ha.devices[DEVICE_ID].properties.filter_remaining_time, 780)
+        assert.equal(ha.devices[DEVICE_ID].properties.filter_used_time, 276)
+        assert.equal(ha.devices[DEVICE_ID].properties.filter_remaining, 74)
 
         dev.drop()
     })

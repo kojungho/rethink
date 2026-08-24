@@ -506,6 +506,88 @@ export default class Device extends TLVDevice {
         }
 
         this.addOptionalSensorField(config, 0x221, 'error', 'Error code', 'mdi:alert')
+        this.addOptionalSensorField(config, 0x333, 'pm1', 'PM1.0', 'mdi:molecule', {
+            unit_of_measurement: 'μg/m³',
+            state_class: 'measurement',
+            entity_category: undefined,
+        })
+        this.addOptionalSensorField(config, 0x334, 'pm2_5', 'PM2.5', 'mdi:molecule', {
+            device_class: 'pm25',
+            unit_of_measurement: 'μg/m³',
+            state_class: 'measurement',
+            entity_category: undefined,
+        })
+        this.addOptionalSensorField(config, 0x335, 'pm10', 'PM10', 'mdi:molecule', {
+            device_class: 'pm10',
+            unit_of_measurement: 'μg/m³',
+            state_class: 'measurement',
+            entity_category: undefined,
+        })
+        this.addOptionalSensorField(
+            config,
+            0x240,
+            'air_quality',
+            '종합 공기질',
+            'mdi:air-filter',
+            { entity_category: undefined },
+            (raw) =>
+                ({ 0: '알 수 없음', 1: '좋음', 2: '보통', 3: '나쁨', 4: '매우 나쁨' })[raw] as
+                    | string
+                    | undefined,
+        )
+
+        if (this.raw_clip_state[0x355] != null && this.raw_clip_state[0x356] != null) {
+            config.components.filter_remaining_time = {
+                platform: 'sensor',
+                unique_id: '$deviceid-filter_remaining_time',
+                state_topic: '$this/filter_remaining_time',
+                name: '필터 잔여 시간',
+                icon: 'mdi:air-filter',
+                device_class: 'duration',
+                unit_of_measurement: 'h',
+                state_class: 'measurement',
+                entity_category: 'diagnostic',
+            } as unknown as DeviceDiscovery['components'][string]
+            config.components.filter_used_time = {
+                platform: 'sensor',
+                unique_id: '$deviceid-filter_used_time',
+                state_topic: '$this/filter_used_time',
+                name: '필터 사용 시간',
+                icon: 'mdi:air-filter',
+                device_class: 'duration',
+                unit_of_measurement: 'h',
+                state_class: 'total_increasing',
+                entity_category: 'diagnostic',
+            } as unknown as DeviceDiscovery['components'][string]
+            config.components.filter_remaining = {
+                platform: 'sensor',
+                unique_id: '$deviceid-filter_remaining',
+                state_topic: '$this/filter_remaining',
+                name: '필터 잔여량',
+                icon: 'mdi:air-filter',
+                unit_of_measurement: '%',
+                state_class: 'measurement',
+                entity_category: 'diagnostic',
+            } as unknown as DeviceDiscovery['components'][string]
+
+            for (const id of [0x355, 0x356]) {
+                this.addField(
+                    config,
+                    {
+                        id,
+                        name: '',
+                        comp: 'filter_remaining',
+                        readable: false,
+                        writable: false,
+                        read_callback: () => {
+                            this.publishDirectFilterData()
+                            return false
+                        },
+                    },
+                    false,
+                )
+            }
+        }
         this.addOptionalSensorField(
             config,
             0x32e,
@@ -862,6 +944,16 @@ export default class Device extends TLVDevice {
 
     protected extendConfig(config: DeviceDiscovery) {
         // Model-specific subclasses may add discovery components and fields.
+    }
+
+    private publishDirectFilterData() {
+        const remaining = this.raw_clip_state[0x355]
+        const total = this.raw_clip_state[0x356]
+        if (remaining == null || total == null || total <= 0) return
+
+        this.HA.publishProperty(this.id, 'filter_remaining_time', remaining)
+        this.HA.publishProperty(this.id, 'filter_used_time', Math.max(0, total - remaining))
+        this.HA.publishProperty(this.id, 'filter_remaining', Math.max(0, Math.min(100, Math.round((remaining / total) * 100))))
     }
 
     addTimerField(config: DeviceDiscovery, id: number, name: string, desc: string, icon: string, max: number) {

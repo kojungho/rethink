@@ -37,14 +37,17 @@ describe('H01', () => {
         assert.equal(components.power.platform, 'switch')
         assert.equal(components.pause.platform, 'button')
         assert.equal(components.remote_course.platform, 'select')
-        assert.equal(components.steam, undefined)
+        assert.equal(components.steam.platform, 'binary_sensor')
+        assert.equal(components.intensive_wash.platform, 'sensor')
+        assert.equal(components.safe_rinse.platform, 'binary_sensor')
+        assert.equal(components.hot_air_dry.platform, 'sensor')
         assert.equal(components.remote_steam, undefined)
         assert.equal(components.remote_start.platform, 'button')
         assert.equal(components.energy_total.device_class, 'energy')
         assert.equal(components.protocol_status.entity_category, 'diagnostic')
     })
 
-    test('removes the retired Steam components before publishing the normal config', () => {
+    test('removes only retired or unsupported components before publishing the normal config', () => {
         const ha = new MockHAConnection()
         const configs: Array<Record<string, Record<string, unknown>>> = []
         const publishConfig = ha.publishConfig.bind(ha)
@@ -56,11 +59,10 @@ describe('H01', () => {
         new DUT(ha.asConnection(), new MockThinq2Device(DEVICE_ID, META), META)
 
         assert.equal(configs.length, 2)
-        assert.deepEqual(configs[0].steam, { platform: 'binary_sensor' })
         assert.deepEqual(configs[0].remote_steam, { platform: 'switch' })
         assert.deepEqual(configs[0].brightness, { platform: 'select' })
         assert.deepEqual(configs[0].auto_dry, { platform: 'switch' })
-        assert.equal(configs[1].steam, undefined)
+        assert.equal(configs[1].steam.platform, 'binary_sensor')
         assert.equal(configs[1].remote_steam, undefined)
         assert.equal(configs[1].brightness, undefined)
         assert.equal(configs[1].auto_dry, undefined)
@@ -86,7 +88,7 @@ describe('H01', () => {
         assert.equal(properties.protocol_status, STATUS_HEX)
         assert.equal(properties.state, 'OFF')
         assert.equal(properties.power, 'OFF')
-        assert.equal(properties.course, 'OFF')
+        assert.equal(properties.course, '꺼짐')
         assert.equal(properties.initial_time, 99)
         assert.equal(properties.remaining_time, 1)
         assert.equal(properties.delay_start, 0)
@@ -133,7 +135,7 @@ describe('H01', () => {
 
         assert.equal(properties.state, 'RUNNING')
         assert.equal(properties.power, 'ON')
-        assert.equal(properties.course, 'GLASS_AND_WINE')
+        assert.equal(properties.course, '자동')
         assert.equal(properties.initial_time, 90)
         assert.equal(properties.remaining_time, 42)
         assert.equal(properties.delay_start, 2)
@@ -247,7 +249,63 @@ describe('H01', () => {
         )
 
         assert.equal(ha.devices[DEVICE_ID].properties.state, 'PAUSE')
-        assert.equal(ha.devices[DEVICE_ID].properties.course, 'ONE_HOUR')
+        assert.equal(ha.devices[DEVICE_ID].properties.course, 'UNKNOWN_0x12')
+    })
+
+    test('decodes all H01 courses captured from the physical controls', () => {
+        const { ha, thinq } = makeDevice()
+        const expected: Array<[number, string]> = [
+            [0x01, '자동'],
+            [0x05, '표준'],
+            [0x02, '강력'],
+            [0x10, '야간조용'],
+            [0x09, '통살균'],
+            [0x06, '다운로드'],
+            [0x0f, '건조단독'],
+        ]
+
+        for (const [course, name] of expected) {
+            const current = Buffer.alloc(24)
+            current[5] = course
+            if (course === 0x06) current[20] = 0x0a
+            thinq.emit('data', frame(Buffer.concat([Buffer.from([0x32, 0xec]), statusBlock(), statusBlock(current)])))
+            assert.equal(ha.devices[DEVICE_ID].properties.course, name)
+            if (course === 0x06) assert.equal(ha.devices[DEVICE_ID].properties.downloaded_course, 'RINSE_ONLY')
+        }
+    })
+
+    test('decodes captured steam, intensive wash, sanitizing, safe rinse, and hot-air dry options', () => {
+        const { ha, thinq } = makeDevice()
+        const current = Buffer.alloc(24)
+        current[12] = 0xc8
+        current[15] = 0x34
+        thinq.emit('data', frame(Buffer.concat([Buffer.from([0x32, 0xec]), statusBlock(), statusBlock(current)])))
+        const properties = ha.devices[DEVICE_ID].properties
+
+        assert.equal(properties.steam, 'ON')
+        assert.equal(properties.intensive_wash, '상단')
+        assert.equal(properties.high_temp, 'ON')
+        assert.equal(properties.safe_rinse, 'ON')
+        assert.equal(properties.hot_air_dry, '90분')
+
+        current[12] = 0xa0
+        current[15] = 0x10
+        thinq.emit('data', frame(Buffer.concat([Buffer.from([0x32, 0xec]), statusBlock(), statusBlock(current)])))
+        assert.equal(properties.intensive_wash, '하단')
+        assert.equal(properties.hot_air_dry, '40분')
+
+        current[12] = 0x80
+        current[15] = 0x20
+        thinq.emit('data', frame(Buffer.concat([Buffer.from([0x32, 0xec]), statusBlock(), statusBlock(current)])))
+        assert.equal(properties.intensive_wash, '전체')
+        assert.equal(properties.hot_air_dry, '60분')
+
+        current[12] = 0
+        current[15] = 0
+        thinq.emit('data', frame(Buffer.concat([Buffer.from([0x32, 0xec]), statusBlock(), statusBlock(current)])))
+        assert.equal(properties.steam, 'OFF')
+        assert.equal(properties.safe_rinse, 'OFF')
+        assert.equal(properties.hot_air_dry, '꺼짐')
     })
 
     test('ignores unknown and malformed frames', () => {

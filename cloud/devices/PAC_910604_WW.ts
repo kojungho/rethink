@@ -54,6 +54,7 @@ export default class Device extends RACDevice {
                 oduhextemp: { platform: 'sensor' } as unknown as DeviceDiscovery['components'][string],
                 pipeintemp: { platform: 'sensor' } as unknown as DeviceDiscovery['components'][string],
                 pipeouttemp: { platform: 'sensor' } as unknown as DeviceDiscovery['components'][string],
+                filter_life: { platform: 'sensor' } as unknown as DeviceDiscovery['components'][string],
             },
         })
         this.initMakeSetConfig()
@@ -148,26 +149,14 @@ export default class Device extends RACDevice {
             },
         })
 
-        config.components.filter_life = {
-            platform: 'sensor',
-            unique_id: '$deviceid-filter-life',
-            state_topic: '$this/filter_life',
-            name: '필터 전체 수명',
-            icon: 'mdi:air-filter',
-            device_class: 'duration',
-            unit_of_measurement: 'h',
-            state_class: 'measurement',
-            entity_category: 'diagnostic',
-        } as unknown as DeviceDiscovery['components'][string]
         config.components.filter_used = {
             platform: 'sensor',
             unique_id: '$deviceid-filter-used',
             state_topic: '$this/filter_used',
-            name: '필터 사용 시간',
+            name: '필터 사용량',
             icon: 'mdi:air-filter',
-            device_class: 'duration',
-            unit_of_measurement: 'h',
-            state_class: 'total_increasing',
+            unit_of_measurement: '%',
+            state_class: 'measurement',
             entity_category: 'diagnostic',
         } as unknown as DeviceDiscovery['components'][string]
         for (const id of [0x355, 0x356]) {
@@ -176,7 +165,7 @@ export default class Device extends RACDevice {
                 {
                     id,
                     name: '',
-                    comp: 'filter_life',
+                    comp: 'filter_used',
                     readable: false,
                     writable: false,
                     read_callback: () => {
@@ -400,9 +389,9 @@ export default class Device extends RACDevice {
         const remaining = this.raw_clip_state[0x355]
         const life = this.raw_clip_state[0x356]
         if (remaining == null || life == null || life <= 0) return
-        this.HA.publishProperty(this.id, 'filter_life', life)
-        this.HA.publishProperty(this.id, 'filter_used', Math.max(0, life - remaining))
-        this.HA.publishProperty(this.id, 'filter_remaining', Math.max(0, Math.min(100, Math.round((remaining / life) * 100))))
+        const remainingPercent = Math.max(0, Math.min(100, Math.round((remaining / life) * 100)))
+        this.HA.publishProperty(this.id, 'filter_used', 100 - remainingPercent)
+        this.HA.publishProperty(this.id, 'filter_remaining', remainingPercent)
     }
 
     private updatePacClimateAction(compressorRunning: boolean) {

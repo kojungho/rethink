@@ -33,7 +33,6 @@ describe('PAC_910604_WW', () => {
             'pm10',
             'air_quality',
             'filter_remaining',
-            'filter_life',
             'filter_used',
             'filter_reset',
             'temperature_step',
@@ -128,10 +127,9 @@ describe('PAC_910604_WW', () => {
         assert.equal(climate.temp_step, 1)
         assert.equal(climate.precision, 1)
 
-        dev.processKeyValue(0x356, 3000)
-        dev.processKeyValue(0x355, 2580)
-        assert.equal(ha.devices[DEVICE_ID].properties.filter_life, 3000)
-        assert.equal(ha.devices[DEVICE_ID].properties.filter_used, 420)
+        dev.processKeyValue(0x356, 100)
+        dev.processKeyValue(0x355, 86)
+        assert.equal(ha.devices[DEVICE_ID].properties.filter_used, 14)
         assert.equal(ha.devices[DEVICE_ID].properties.filter_remaining, 86)
 
         ha.setProperty(DEVICE_ID, 'filter_reset', 'command', 'PRESS')

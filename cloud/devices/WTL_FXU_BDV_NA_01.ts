@@ -1004,8 +1004,9 @@ export default class Device extends AABBDevice {
     // [91]=drylevelSubVery [92:93]=moreLessTime(uint16)
     // [94]=bitmask(ushLaundryCareSettingOnOff[5]/drumlightOpt[4]/drumlightAutoOn[3]/noti3MinEnd[2]/isPowerCableOff[1]/endReserveTime[0])
     //
-    private processStateBlock(block: Buffer) {
-        if (block.length != STATE_BLOCK_LENGTH) return
+    protected processStateBlock(block: Buffer) {
+        if (block.length < STATE_BLOCK_LENGTH) return
+        block = block.subarray(0, STATE_BLOCK_LENGTH)
 
         this.publishProperty('washer/soil_wash', Device.formatEnum(WASHER_SOIL_WASH, block[3]))
         this.publishProperty('washer/temp', Device.formatEnum(WASHER_TEMPS, block[4]))

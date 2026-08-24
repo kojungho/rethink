@@ -9,6 +9,62 @@ describe('ThinQ2 time synchronization', () => {
         const result = timeSyncPayload(new Date('2026-08-14T23:59:58Z'), '+0900')
         assert.deepEqual([...result], [26, 8, 15, 8, 59, 58, 6])
     })
+
+    test('sends the current time when PAC_910604_WW completes provisioning', () => {
+        const published: Array<{ topic: string; payload: Buffer | string }> = []
+        const broker = Object.assign(new EventEmitter(), {
+            publish(packet: { topic: string; payload: Buffer | string }) {
+                published.push(packet)
+            },
+        }) as unknown as Broker
+        const acceptor = new DeviceAcceptor(broker)
+        const client = {
+            deployMsg: {
+                did: 'pac-1',
+                kind: 'PAC_910604_WW',
+                data: { appInfo: { timezone: '+0900' } },
+            },
+            deviceObj: undefined,
+            destroy() {},
+        }
+
+        acceptor.completeProvisioning(
+            'pac-1',
+            { did: 'pac-1', cmd: 'completeProvisioning_ack', type: 1, data: '', mid: 1 },
+            client as never,
+        )
+
+        assert.equal(published.length, 1)
+        assert.equal(published[0].topic, 'lime/devices/pac-1')
+        const response = JSON.parse(published[0].payload.toString())
+        assert.equal(response.did, 'pac-1')
+        assert.equal(response.cmd, 'resp_timesync')
+        assert.equal(response.type, 1)
+        assert.equal(Buffer.from(response.data, 'base64').length, 7)
+    })
+
+    test('does not send unsolicited time synchronization to other models', () => {
+        const published: unknown[] = []
+        const broker = Object.assign(new EventEmitter(), {
+            publish(packet: unknown) {
+                published.push(packet)
+            },
+        }) as unknown as Broker
+        const acceptor = new DeviceAcceptor(broker)
+        const client = {
+            deployMsg: { did: 'other-1', kind: 'OTHER_MODEL', data: { appInfo: { timezone: '+0900' } } },
+            deviceObj: undefined,
+            destroy() {},
+        }
+
+        acceptor.completeProvisioning(
+            'other-1',
+            { did: 'other-1', cmd: 'completeProvisioning_ack', type: 1, data: '', mid: 1 },
+            client as never,
+        )
+
+        assert.equal(published.length, 0)
+    })
 })
 
 test('emits every raw appliance packet before model decoding', () => {

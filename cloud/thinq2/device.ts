@@ -183,6 +183,13 @@ export class DeviceAcceptor extends TypedEmitter<DeviceAcceptorEvents> {
         const dev = new Device(this.broker, 'lime/devices/' + deviceId, deviceId, meta)
         client.deviceObj = dev
         this.emit('newDevice', dev)
+
+        // PAC_910604_WW does not always request time synchronization itself.
+        // Without an initial response its standby clock remains on the Wi-Fi
+        // connection prompt even though MQTT provisioning has completed.
+        if (meta.modelId === 'PAC_910604_WW') {
+            this.timeSyncRequest(client)
+        }
     }
 
     timeSyncRequest(client: ClientWithExtra) {

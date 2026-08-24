@@ -385,7 +385,7 @@ export default class Device extends RACDevice {
             ] ?? '알 수 없음',
         )
         this.HA.publishProperty(this.id, 'filter_remaining', buf[286])
-        this.updateClimateAction(buf[160] !== 0)
+        this.updatePacClimateAction(buf[160] !== 0)
     }
 
     private updateTemperatureStep(step: 0.5 | 1) {
@@ -405,7 +405,7 @@ export default class Device extends RACDevice {
         this.HA.publishProperty(this.id, 'filter_remaining', Math.max(0, Math.min(100, Math.round((remaining / life) * 100))))
     }
 
-    private updateClimateAction(compressorRunning: boolean) {
+    private updatePacClimateAction(compressorRunning: boolean) {
         const power = this.raw_clip_state[fields.power]
         const mode = this.raw_clip_state[fields.mode]
         let action: string | undefined

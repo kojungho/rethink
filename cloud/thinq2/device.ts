@@ -69,6 +69,7 @@ function trimNull(buf: Buffer) {
 type ClientWithExtra = Client & {
     deviceObj: undefined | Device
     deployMsg: undefined | ClipDeployMessage
+    pacTimeSyncRetried?: boolean
 }
 
 type DeviceAcceptorEvents = {
@@ -130,6 +131,15 @@ export class DeviceAcceptor extends TypedEmitter<DeviceAcceptorEvents> {
                 if (client.deviceObj) {
                     const buf = Buffer.from(payload.data as string, 'hex')
                     client.deviceObj.receivePacket(buf)
+
+                    // PAC can ignore the response sent immediately after
+                    // provisioning while its display controller is still
+                    // starting. Retry once after the first appliance packet,
+                    // when the device is demonstrably ready to receive it.
+                    if (client.deployMsg?.kind === 'PAC_910604_WW' && !client.pacTimeSyncRetried) {
+                        client.pacTimeSyncRetried = true
+                        this.timeSyncRequest(client)
+                    }
                 }
             }
 

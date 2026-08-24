@@ -65,6 +65,34 @@ describe('ThinQ2 time synchronization', () => {
 
         assert.equal(published.length, 0)
     })
+
+    test('retries PAC time synchronization once after the first appliance packet', () => {
+        const published: Array<{ topic: string; payload: Buffer | string }> = []
+        const broker = Object.assign(new EventEmitter(), {
+            publish(packet: { topic: string; payload: Buffer | string }) {
+                published.push(packet)
+            },
+        }) as unknown as Broker
+        const acceptor = new DeviceAcceptor(broker)
+        const device = new Device(broker, 'lime/devices/pac-1', 'pac-1', { modelId: 'PAC_910604_WW' })
+        const client = {
+            deployMsg: {
+                did: 'pac-1',
+                kind: 'PAC_910604_WW',
+                data: { appInfo: { timezone: '+0900' } },
+            },
+            deviceObj: device,
+        }
+        const packet = { did: 'pac-1', cmd: 'device_packet', type: 1, data: '00', mid: 1 } as const
+
+        acceptor.mqtt('clip/message/devices/pac-1', packet, client as never)
+        acceptor.mqtt('clip/message/devices/pac-1', packet, client as never)
+
+        assert.equal(published.length, 1)
+        const response = JSON.parse(published[0].payload.toString())
+        assert.equal(response.cmd, 'resp_timesync')
+        assert.equal(Buffer.from(response.data, 'base64').length, 7)
+    })
 })
 
 test('emits every raw appliance packet before model decoding', () => {

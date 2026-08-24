@@ -30,7 +30,6 @@ const REMOTE_COURSES: Record<string, number> = {
 
 const BUZZER_OPTIONS = ['OFF', 'LOW', 'HIGH']
 const REMOTE_MODE_OPTIONS = ['OFF', 'ONE_TIME', 'ALWAYS']
-const BRIGHTNESS_OPTIONS = ['NORMAL', 'HIGH']
 
 const DOWNLOADED_COURSES: Record<number, string> = {
     0x02: 'POTS_AND_PANS',
@@ -68,8 +67,8 @@ export default class Device extends AABBDevice {
     private settings = {
         rinse: 0,
         salt: 0,
-        opt1: 0,
-        opt2: 0xc0,
+        opt1: 0x90,
+        opt2: 0xc2,
         opt3: 0,
     }
     private hasStatus = false
@@ -141,7 +140,7 @@ export default class Device extends AABBDevice {
                         unique_id: '$deviceid-salt-level',
                         state_topic: '$this/salt_level',
                         command_topic: '$this/salt_level/set',
-                        name: 'Salt level',
+                        name: 'Water hardness',
                         min: 0,
                         max: 4,
                         step: 1,
@@ -171,15 +170,6 @@ export default class Device extends AABBDevice {
                         name: 'Remote mode',
                         icon: 'mdi:remote',
                     },
-                    brightness: {
-                        platform: 'select',
-                        unique_id: '$deviceid-brightness',
-                        state_topic: '$this/brightness',
-                        command_topic: '$this/brightness/set',
-                        options: BRIGHTNESS_OPTIONS,
-                        name: 'Display brightness',
-                        icon: 'mdi:brightness-6',
-                    },
                     door: {
                         platform: 'binary_sensor',
                         unique_id: '$deviceid-door',
@@ -198,16 +188,6 @@ export default class Device extends AABBDevice {
                         payload_on: 'ON',
                         payload_off: 'OFF',
                         icon: 'mdi:lightbulb-on-outline',
-                    },
-                    auto_dry: {
-                        platform: 'switch',
-                        unique_id: '$deviceid-auto-dry',
-                        state_topic: '$this/auto_dry',
-                        command_topic: '$this/auto_dry/set',
-                        name: 'Auto dry',
-                        payload_on: 'ON',
-                        payload_off: 'OFF',
-                        icon: 'mdi:weather-windy',
                     },
                     extra_dry: {
                         platform: 'binary_sensor',
@@ -389,6 +369,8 @@ export default class Device extends AABBDevice {
             {
                 steam: { platform: 'binary_sensor' },
                 remote_steam: { platform: 'switch' },
+                brightness: { platform: 'select' },
+                auto_dry: { platform: 'switch' },
             },
         )
     }
@@ -448,13 +430,19 @@ export default class Device extends AABBDevice {
 
         this.settings.rinse = data[13]
         this.settings.salt = data[14]
+        // H01 preserves two model flags (0x80 and 0x10) in every settings
+        // command. They are present in all captured app writes and are not
+        // represented by user-facing controls. Dropping them can overwrite
+        // unrelated appliance configuration.
         this.settings.opt1 =
+            0x90 |
             (data[16] & 0x04 ? 0x40 : 0) |
             (data[11] & 0x10 ? 0x20 : 0) |
             (data[11] & 0x40 ? 0x08 : 0) |
             (buzzer === 'HIGH' ? 0x04 : buzzer === 'LOW' ? 0x02 : 0)
-        this.settings.opt2 = remoteMode === 'ALWAYS' ? 0x80 : remoteMode === 'ONE_TIME' ? 0x40 : 0xc0
-        this.settings.opt3 = data[19] & 0x40
+        // Bit 0x02 is likewise fixed in every H01 app capture.
+        this.settings.opt2 = (remoteMode === 'ALWAYS' ? 0x80 : remoteMode === 'ONE_TIME' ? 0x40 : 0xc0) | 0x02
+        this.settings.opt3 = 0
         this.hasStatus = true
 
         this.publishProperty('protocol_status', status.toString('hex').toUpperCase())
@@ -466,7 +454,6 @@ export default class Device extends AABBDevice {
         this.publishProperty('delay_start', data[9])
         this.publishProperty('door', data[11] & 0x02 ? 'OPEN' : 'CLOSED')
         this.publishProperty('clean_reminder', data[11] & 0x40 ? 'ON' : 'OFF')
-        this.publishProperty('auto_dry', data[11] & 0x10 ? 'ON' : 'OFF')
         this.publishProperty('extra_dry', data[12] & 0x04 ? 'ON' : 'OFF')
         this.publishProperty('high_temp', data[12] & 0x08 ? 'ON' : 'OFF')
         this.publishProperty('rinse_level', data[13])
@@ -474,7 +461,6 @@ export default class Device extends AABBDevice {
         this.publishProperty('remote_start_active', data[15] & 0x02 ? 'ON' : 'OFF')
         this.publishProperty('remote_mode', remoteMode)
         this.publishProperty('end_alarm', data[16] & 0x04 ? 'ON' : 'OFF')
-        this.publishProperty('brightness', data[19] & 0x40 ? 'HIGH' : 'NORMAL')
         this.publishProperty('buzzer', buzzer)
         this.publishProperty(
             'downloaded_course',
@@ -511,18 +497,14 @@ export default class Device extends AABBDevice {
             this.updateNumberSetting('salt', value, 0, 4)
         } else if (prop === 'clean_reminder') {
             this.updateSettingBit('opt1', 0x08, value === 'ON')
-        } else if (prop === 'auto_dry') {
-            this.updateSettingBit('opt1', 0x20, value === 'ON')
         } else if (prop === 'end_alarm') {
             this.updateSettingBit('opt1', 0x40, value === 'ON')
         } else if (prop === 'buzzer' && BUZZER_OPTIONS.includes(value)) {
             this.settings.opt1 = (this.settings.opt1 & ~0x06) | (value === 'HIGH' ? 0x04 : value === 'LOW' ? 0x02 : 0)
             this.sendSettings()
         } else if (prop === 'remote_mode' && REMOTE_MODE_OPTIONS.includes(value)) {
-            this.settings.opt2 = value === 'ALWAYS' ? 0x80 : value === 'ONE_TIME' ? 0x40 : 0xc0
+            this.settings.opt2 = (value === 'ALWAYS' ? 0x80 : value === 'ONE_TIME' ? 0x40 : 0xc0) | 0x02
             this.sendSettings()
-        } else if (prop === 'brightness' && BRIGHTNESS_OPTIONS.includes(value)) {
-            this.updateSettingBit('opt3', 0x40, value === 'HIGH')
         } else if (prop === 'remote_course' && value in REMOTE_COURSES) {
             this.remoteStart.course = REMOTE_COURSES[value]
             this.publishProperty(prop, value)
@@ -568,7 +550,6 @@ export default class Device extends AABBDevice {
                 this.settings.opt1,
                 this.settings.opt2,
                 this.settings.opt3,
-                0x00,
                 0x00,
                 0x00,
                 0x00,

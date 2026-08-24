@@ -52,6 +52,8 @@ const SEND_DRYER_BUZZER_VHIGH = 'AA0DF0E5000201340113048EBB'
 const SEND_START = 'AA0EF0ED1121010000001800B5BB'
 const SEND_WASHER_REMOTE_MAINTAIN_ON = 'AA0AF0241001013358BB'
 const SEND_WASHER_REMOTE_MAINTAIN_OFF = 'AA0AF0241001003359BB'
+const SEND_WASHER_LAUNDRY_CARE_ON = 'AA0DF0E5000201330157014EBB'
+const SEND_WASHER_LAUNDRY_CARE_OFF = 'AA0DF0E5000201330157004FBB'
 const SEND_DRYER_REMOTE_MAINTAIN_ON = 'AA0AF024100101345BBB'
 const SEND_DRYER_REMOTE_MAINTAIN_OFF = 'AA0AF0241001003458BB'
 
@@ -89,6 +91,7 @@ describe(MODEL_ID, () => {
             'washer_spin',
             'washer_remaining_time',
             'washer_remote_maintain',
+            'washer_laundry_care',
             'dryer_state',
             'dryer_power',
             'dryer_door',
@@ -112,6 +115,7 @@ describe(MODEL_ID, () => {
         assert.equal(dryerPower.optimistic, undefined)
         assert.equal((components.washer_buzzer as Record<string, unknown>).entity_category, 'config')
         assert.equal((components.dryer_remote_maintain as Record<string, unknown>).entity_category, 'config')
+        assert.equal((components.washer_laundry_care as Record<string, unknown>).entity_category, 'config')
     })
 
     test('recreates settings components so Home Assistant applies their config category', () => {
@@ -399,5 +403,26 @@ describe(MODEL_ID, () => {
         thinq.resetRecorder()
         dev.setProperty('dryer/remote_maintain', 'OFF')
         assert.equal(hex(thinq.outbox[0]), SEND_DRYER_REMOTE_MAINTAIN_OFF)
+    })
+
+    test('0x71 washer laundry care decodes from block[49] bit3', () => {
+        const { ha, thinq } = makeDevice()
+        thinq.emit('data', buildResync({ 49: 0x0c }))
+        assert.equal(ha.devices[DEVICE_ID].properties['washer/laundry_care'], 'ON')
+
+        const { ha: ha2, thinq: thinq2 } = makeDevice()
+        thinq2.emit('data', buildResync({ 49: 0x04 }))
+        assert.equal(ha2.devices[DEVICE_ID].properties['washer/laundry_care'], 'OFF')
+    })
+
+    test('setProperty washer/laundry_care sends captured packets', () => {
+        const { thinq, dev } = makeDevice()
+        thinq.resetRecorder()
+        dev.setProperty('washer/laundry_care', 'ON')
+        assert.equal(hex(thinq.outbox[0]), SEND_WASHER_LAUNDRY_CARE_ON)
+
+        thinq.resetRecorder()
+        dev.setProperty('washer/laundry_care', 'OFF')
+        assert.equal(hex(thinq.outbox[0]), SEND_WASHER_LAUNDRY_CARE_OFF)
     })
 })

@@ -776,6 +776,20 @@ export default class Device extends AABBDevice {
                             { topic: '$this/washer/power', payload_available: 'ON', payload_not_available: 'OFF' },
                         ],
                     },
+                    washer_laundry_care: {
+                        platform: 'switch',
+                        unique_id: '$deviceid-washer-laundry-care',
+                        state_topic: '$this/washer/laundry_care',
+                        command_topic: '$this/washer/laundry_care/set',
+                        payload_on: 'ON',
+                        payload_off: 'OFF',
+                        name: 'Washer laundry care',
+                        entity_category: 'config',
+                        icon: 'mdi:hanger',
+                        availability: [
+                            { topic: '$this/washer/power', payload_available: 'ON', payload_not_available: 'OFF' },
+                        ],
+                    },
                     dryer_door: {
                         platform: 'binary_sensor',
                         unique_id: '$deviceid-dryer-door',
@@ -902,6 +916,9 @@ export default class Device extends AABBDevice {
         } else if (prop === 'washer/remote_maintain') {
             const on = value === 'ON' ? 0x01 : 0x00
             this.send(Buffer.from([0xf0, 0x24, 0x10, 0x01, on, WASHER_UNIT]))
+        } else if (prop === 'washer/laundry_care') {
+            const on = value === 'ON' ? 0x01 : 0x00
+            this.send(Buffer.from([0xf0, 0xe5, 0x00, 0x02, 0x01, WASHER_UNIT, 0x01, 0x57, on]))
         } else if (prop === 'dryer/remote_maintain') {
             const on = value === 'ON' ? 0x01 : 0x00
             this.send(Buffer.from([0xf0, 0x24, 0x10, 0x01, on, DRYER_UNIT]))
@@ -1056,6 +1073,7 @@ export default class Device extends AABBDevice {
         // this.publishProperty('washer/detergent_state', block[41] & 0x02 ? 'FULL' : 'EMPTY')
         // this.publishProperty('washer/softener_state', block[41] & 0x01 ? 'FULL' : 'EMPTY')
         this.publishProperty('washer/remote_maintain', block[42] & 0x04 ? 'ON' : 'OFF')
+        this.publishProperty('washer/laundry_care', block[49] & 0x08 ? 'ON' : 'OFF')
 
         this.publishProperty('dryer/dry_level', Device.formatEnum(DRYER_DRY_LEVELS, dryer[1]))
         this.publishProperty('dryer/temp', Device.formatEnum(DRYER_TEMP, dryer[3]))

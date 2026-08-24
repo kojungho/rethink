@@ -16,10 +16,14 @@ const STATES: Record<number, string> = {
 }
 
 const COURSES: Record<number, string> = {
-    0x00: 'OFF',
-    0x01: 'AUTO',
-    0x0b: 'DOWNLOAD_CYCLE',
-    0x12: 'ONE_HOUR',
+    0x00: '꺼짐',
+    0x01: '자동',
+    0x02: '강력',
+    0x05: '표준',
+    0x06: '다운로드',
+    0x09: '통살균',
+    0x0f: '건조단독',
+    0x10: '야간조용',
 }
 
 const REMOTE_COURSES: Record<string, number> = {
@@ -99,6 +103,38 @@ export default class Device extends AABBDevice {
                         state_topic: '$this/course',
                         name: '코스',
                         icon: 'mdi:dishwasher',
+                    },
+                    steam: {
+                        platform: 'binary_sensor',
+                        unique_id: '$deviceid-steam',
+                        state_topic: '$this/steam',
+                        name: '스팀',
+                        payload_on: 'ON',
+                        payload_off: 'OFF',
+                        icon: 'mdi:steam',
+                    },
+                    intensive_wash: {
+                        platform: 'sensor',
+                        unique_id: '$deviceid-intensive-wash',
+                        state_topic: '$this/intensive_wash',
+                        name: '집중세척',
+                        icon: 'mdi:spray-bottle',
+                    },
+                    safe_rinse: {
+                        platform: 'binary_sensor',
+                        unique_id: '$deviceid-safe-rinse',
+                        state_topic: '$this/safe_rinse',
+                        name: '안심헹굼',
+                        payload_on: 'ON',
+                        payload_off: 'OFF',
+                        icon: 'mdi:water-check',
+                    },
+                    hot_air_dry: {
+                        platform: 'sensor',
+                        unique_id: '$deviceid-hot-air-dry',
+                        state_topic: '$this/hot_air_dry',
+                        name: '열풍건조',
+                        icon: 'mdi:weather-windy',
                     },
                     initial_time: {
                         platform: 'sensor',
@@ -367,7 +403,6 @@ export default class Device extends AABBDevice {
                 },
             }),
             {
-                steam: { platform: 'binary_sensor' },
                 remote_steam: { platform: 'switch' },
                 brightness: { platform: 'select' },
                 auto_dry: { platform: 'switch' },
@@ -421,9 +456,7 @@ export default class Device extends AABBDevice {
 
         const data = status.subarray(2)
         const downloadedCourse = data[20]
-        const course = downloadedCourse
-            ? formatEnum(DOWNLOADED_COURSES, downloadedCourse)
-            : formatEnum(COURSES, data[5])
+        const course = formatEnum(COURSES, data[5])
         const state = data[0]
         const remoteMode = this.remoteMode(data[16])
         const buzzer = data[15] & 0x80 ? 'HIGH' : data[15] & 0x40 ? 'LOW' : 'OFF'
@@ -449,6 +482,10 @@ export default class Device extends AABBDevice {
         this.publishProperty('state', formatEnum(STATES, state))
         this.publishProperty('power', state === 0x01 || state === 0x02 || state === 0x03 ? 'ON' : 'OFF')
         this.publishProperty('course', course)
+        this.publishProperty('steam', data[12] & 0x80 ? 'ON' : 'OFF')
+        this.publishProperty('intensive_wash', this.intensiveWash(data[12]))
+        this.publishProperty('safe_rinse', data[15] & 0x04 ? 'ON' : 'OFF')
+        this.publishProperty('hot_air_dry', this.hotAirDry(data[15]))
         this.publishProperty('initial_time', data[3] * 60 + data[4])
         this.publishProperty('remaining_time', data[7] * 60 + data[8])
         this.publishProperty('delay_start', data[9])
@@ -479,6 +516,32 @@ export default class Device extends AABBDevice {
                 return 'OFF'
             default:
                 return 'UNKNOWN'
+        }
+    }
+
+    private intensiveWash(value: number) {
+        switch (value & 0x60) {
+            case 0x40:
+                return '상단'
+            case 0x20:
+                return '하단'
+            case 0x00:
+                return '전체'
+            default:
+                return '알 수 없음'
+        }
+    }
+
+    private hotAirDry(value: number) {
+        switch (value & 0x30) {
+            case 0x10:
+                return '40분'
+            case 0x20:
+                return '60분'
+            case 0x30:
+                return '90분'
+            default:
+                return '꺼짐'
         }
     }
 

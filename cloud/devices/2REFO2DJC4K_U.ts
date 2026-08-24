@@ -8,6 +8,9 @@ import { freezerRange, fridgeRange } from './fridge_common'
 
 export default class Device extends AABBDevice {
     readonly deviceConfig: DeviceDiscovery
+    private previousDoorOpen: boolean | undefined
+    private doorOpenCount = 0
+    private doorOpenedAt: number | undefined
 
     constructor(HA: Connection, thinq: Thinq2Device, meta: Metadata) {
         super(HA, thinq)
@@ -77,6 +80,43 @@ export default class Device extends AABBDevice {
                         unique_id: '$deviceid-door',
                         state_topic: '$this/door',
                         name: '문 열림',
+                    },
+                    door_open_count: {
+                        platform: 'sensor',
+                        icon: 'mdi:door-open',
+                        unique_id: '$deviceid-door_open_count',
+                        state_topic: '$this/door_open_count',
+                        name: '문 열림 횟수',
+                        state_class: 'total_increasing',
+                        unit_of_measurement: '회',
+                    },
+                    current_door_open_duration: {
+                        platform: 'sensor',
+                        device_class: 'duration',
+                        icon: 'mdi:timer-sand',
+                        unique_id: '$deviceid-current_door_open_duration',
+                        state_topic: '$this/current_door_open_duration',
+                        name: '현재 문 열림 시간',
+                        state_class: 'measurement',
+                        unit_of_measurement: 's',
+                    },
+                    last_door_opened_at: {
+                        platform: 'sensor',
+                        device_class: 'timestamp',
+                        icon: 'mdi:clock-outline',
+                        unique_id: '$deviceid-last_door_opened_at',
+                        state_topic: '$this/last_door_opened_at',
+                        name: '마지막 문 열림 시각',
+                    },
+                    last_door_open_duration: {
+                        platform: 'sensor',
+                        device_class: 'duration',
+                        icon: 'mdi:timer-check-outline',
+                        unique_id: '$deviceid-last_door_open_duration',
+                        state_topic: '$this/last_door_open_duration',
+                        name: '마지막 문 열림 지속 시간',
+                        state_class: 'measurement',
+                        unit_of_measurement: 's',
                     },
                     express_freeze: {
                         platform: 'switch',
@@ -188,7 +228,7 @@ export default class Device extends AABBDevice {
                         state_class: 'measurement',
                         unit_of_measurement: 'mL',
                         icon: 'mdi:cup-water',
-                        name: '설정 출수량',
+                        name: '정량 출수 설정량',
                         unique_id: '$deviceid-dispense_volume',
                         state_topic: '$this/dispense_volume',
                     },
@@ -272,6 +312,7 @@ export default class Device extends AABBDevice {
 
         // MQTT 퍼블리시
         this.publishProperty('door', anyDoorOpen ? 'ON' : 'OFF')
+        this.publishDoorStatistics(anyDoorOpen)
         this.publishProperty('power_status', 'ON')
         this.publishProperty('fridge_setpoint', setpointFridge)
         this.publishProperty('freezer_setpoint', setpointFreezer)
@@ -287,6 +328,31 @@ export default class Device extends AABBDevice {
             this.publishProperty('dispense_volume', confirmedDispenseVolumes[dispenseVolumeUnits])
         }
         this.publishProperty('button_sound', buttonSoundOn ? 'ON' : 'OFF')
+    }
+
+    private publishDoorStatistics(anyDoorOpen: boolean) {
+        const now = Date.now()
+
+        if (anyDoorOpen && this.previousDoorOpen !== true) {
+            // The first frame may arrive while a door is already open. Record its
+            // start time, but only count a confirmed closed -> open transition.
+            if (this.previousDoorOpen === false) this.doorOpenCount += 1
+            this.doorOpenedAt = now
+            this.publishProperty('last_door_opened_at', new Date(now).toISOString())
+        }
+
+        if (!anyDoorOpen && this.previousDoorOpen === true && this.doorOpenedAt !== undefined) {
+            this.publishProperty('last_door_open_duration', Math.max(0, Math.floor((now - this.doorOpenedAt) / 1000)))
+            this.doorOpenedAt = undefined
+        }
+
+        const currentDuration =
+            anyDoorOpen && this.doorOpenedAt !== undefined
+                ? Math.max(0, Math.floor((now - this.doorOpenedAt) / 1000))
+                : 0
+        this.publishProperty('door_open_count', this.doorOpenCount)
+        this.publishProperty('current_door_open_duration', currentDuration)
+        this.previousDoorOpen = anyDoorOpen
     }
 
     private publishAdvancedSettings(status: Buffer) {

@@ -35,6 +35,11 @@ describe(MODEL_ID, () => {
         assert.ok(components.dispenser_mode)
         assert.equal(components.dispense_volume.device_class, 'volume')
         assert.equal(components.dispense_volume.unit_of_measurement, 'mL')
+        assert.equal(components.dispense_volume.name, '정량 출수 설정량')
+        assert.equal(components.door_open_count.state_class, 'total_increasing')
+        assert.equal(components.current_door_open_duration.device_class, 'duration')
+        assert.equal(components.last_door_opened_at.device_class, 'timestamp')
+        assert.equal(components.last_door_open_duration.device_class, 'duration')
         assert.ok(components.button_sound)
         assert.equal(components.express_cool_status.platform, 'binary_sensor')
         assert.equal(components.pure_n_fresh.platform, 'sensor')
@@ -103,6 +108,36 @@ describe(MODEL_ID, () => {
         unconfirmed[65] = 35
         thinq.emit('data', statusFrame(unconfirmed))
         assert.equal(ha.devices[DEVICE_ID].properties.dispense_volume, 1000)
+    })
+
+    test('counts confirmed door openings and publishes door timing diagnostics', () => {
+        const { ha, thinq } = makeDevice()
+        const status = Buffer.alloc(68, 0xff)
+
+        status[7] = 0
+        thinq.emit('data', statusFrame(status))
+        assert.equal(ha.devices[DEVICE_ID].properties.door_open_count, 0)
+        assert.equal(ha.devices[DEVICE_ID].properties.current_door_open_duration, 0)
+
+        status[7] = 1
+        thinq.emit('data', statusFrame(status))
+        assert.equal(ha.devices[DEVICE_ID].properties.door_open_count, 1)
+        assert.match(String(ha.devices[DEVICE_ID].properties.last_door_opened_at), /^\d{4}-\d{2}-\d{2}T/)
+        assert.equal(ha.devices[DEVICE_ID].properties.current_door_open_duration, 0)
+
+        // Repeated open status frames must not increase the count.
+        thinq.emit('data', statusFrame(status))
+        assert.equal(ha.devices[DEVICE_ID].properties.door_open_count, 1)
+
+        status[7] = 0
+        thinq.emit('data', statusFrame(status))
+        assert.equal(ha.devices[DEVICE_ID].properties.door_open_count, 1)
+        assert.equal(ha.devices[DEVICE_ID].properties.current_door_open_duration, 0)
+        assert.equal(ha.devices[DEVICE_ID].properties.last_door_open_duration, 0)
+
+        status[7] = 1
+        thinq.emit('data', statusFrame(status))
+        assert.equal(ha.devices[DEVICE_ID].properties.door_open_count, 2)
     })
 
     test('does not report unsupported express cool as OFF', () => {

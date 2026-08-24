@@ -101,8 +101,17 @@ describe(MODEL_ID, () => {
         // init_lcd select lists all themes
         const init_lcd = components.init_lcd as Record<string, unknown>
         assert.equal(init_lcd.platform, 'select')
+        assert.equal(init_lcd.entity_category, 'config')
         assert.ok((init_lcd.options as string[]).includes('Default'))
         assert.ok((init_lcd.options as string[]).includes('Christmas'))
+        const washerPower = components.washer_power as Record<string, unknown>
+        const dryerPower = components.dryer_power as Record<string, unknown>
+        assert.equal(washerPower.platform, 'switch')
+        assert.equal(dryerPower.platform, 'switch')
+        assert.equal(washerPower.optimistic, undefined)
+        assert.equal(dryerPower.optimistic, undefined)
+        assert.equal((components.washer_buzzer as Record<string, unknown>).entity_category, 'config')
+        assert.equal((components.dryer_remote_maintain as Record<string, unknown>).entity_category, 'config')
     })
 
     test('0xd0 status packet decodes washer state', () => {

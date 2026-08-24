@@ -490,6 +490,8 @@ const INIT_LCD_THEMES: Record<number, string> = {
 }
 
 export default class Device extends AABBDevice {
+    protected readonly dryerStateOffset: number = 53
+
     constructor(HA: Connection, thinq: Thinq2Device, meta: Metadata) {
         super(HA, thinq)
         this.setConfig(
@@ -680,6 +682,7 @@ export default class Device extends AABBDevice {
                         command_topic: '$this/washer/buzzer/set',
                         options: Object.values(DEVICE_BUZZER),
                         optimistic: true,
+                        entity_category: 'config',
                         name: 'Washer buzzer',
                         icon: 'mdi:volume-high',
                         availability: [
@@ -700,6 +703,7 @@ export default class Device extends AABBDevice {
                         command_topic: '$this/dryer/buzzer/set',
                         options: Object.values(DEVICE_BUZZER),
                         optimistic: true,
+                        entity_category: 'config',
                         name: 'Dryer buzzer',
                         icon: 'mdi:volume-high',
                         availability: [
@@ -766,6 +770,7 @@ export default class Device extends AABBDevice {
                         payload_on: 'ON',
                         payload_off: 'OFF',
                         name: 'Washer keep remote start',
+                        entity_category: 'config',
                         icon: 'mdi:remote',
                         availability: [
                             { topic: '$this/washer/power', payload_available: 'ON', payload_not_available: 'OFF' },
@@ -806,6 +811,7 @@ export default class Device extends AABBDevice {
                         payload_on: 'ON',
                         payload_off: 'OFF',
                         name: 'Dryer keep remote start',
+                        entity_category: 'config',
                         icon: 'mdi:remote',
                         availability: [
                             { topic: '$this/dryer/power', payload_available: 'ON', payload_not_available: 'OFF' },
@@ -825,7 +831,6 @@ export default class Device extends AABBDevice {
                         command_topic: '$this/washer/power/set',
                         payload_on: 'ON',
                         payload_off: 'OFF',
-                        optimistic: true,
                         name: 'Washer power',
                         icon: 'mdi:washing-machine',
                     },
@@ -836,7 +841,6 @@ export default class Device extends AABBDevice {
                         command_topic: '$this/dryer/power/set',
                         payload_on: 'ON',
                         payload_off: 'OFF',
-                        optimistic: true,
                         name: 'Dryer power',
                         icon: 'mdi:tumble-dryer',
                     },
@@ -847,6 +851,7 @@ export default class Device extends AABBDevice {
                         command_topic: '$this/shared/init_lcd/set',
                         options: Object.values(INIT_LCD_THEMES),
                         optimistic: true,
+                        entity_category: 'config',
                         name: 'Init LCD',
                         icon: 'mdi:image',
                         availability: [
@@ -1005,8 +1010,8 @@ export default class Device extends AABBDevice {
     // [94]=bitmask(ushLaundryCareSettingOnOff[5]/drumlightOpt[4]/drumlightAutoOn[3]/noti3MinEnd[2]/isPowerCableOff[1]/endReserveTime[0])
     //
     protected processStateBlock(block: Buffer) {
-        if (block.length < STATE_BLOCK_LENGTH) return
-        block = block.subarray(0, STATE_BLOCK_LENGTH)
+        if (block.length < this.dryerStateOffset + (STATE_BLOCK_LENGTH - 53)) return
+        const dryer = block.subarray(this.dryerStateOffset)
 
         this.publishProperty('washer/soil_wash', Device.formatEnum(WASHER_SOIL_WASH, block[3]))
         this.publishProperty('washer/temp', Device.formatEnum(WASHER_TEMPS, block[4]))
@@ -1045,22 +1050,22 @@ export default class Device extends AABBDevice {
         // this.publishProperty('washer/softener_state', block[41] & 0x01 ? 'FULL' : 'EMPTY')
         this.publishProperty('washer/remote_maintain', block[42] & 0x04 ? 'ON' : 'OFF')
 
-        this.publishProperty('dryer/dry_level', Device.formatEnum(DRYER_DRY_LEVELS, block[54]))
-        this.publishProperty('dryer/temp', Device.formatEnum(DRYER_TEMP, block[56]))
-        this.publishProperty('dryer/time_dry', Device.formatEnum(DRYER_TIME_DRY, block[57]))
-        this.publishProperty('dryer/course', Device.formatEnum(DRYER_COURSES, block[58]))
-        this.publishProperty('dryer/reserve_time', block.readUInt16BE(60))
-        this.publishProperty('dryer/remaining_time', block.readUInt16BE(62))
-        this.publishProperty('dryer/initial_time', block.readUInt16BE(64))
+        this.publishProperty('dryer/dry_level', Device.formatEnum(DRYER_DRY_LEVELS, dryer[1]))
+        this.publishProperty('dryer/temp', Device.formatEnum(DRYER_TEMP, dryer[3]))
+        this.publishProperty('dryer/time_dry', Device.formatEnum(DRYER_TIME_DRY, dryer[4]))
+        this.publishProperty('dryer/course', Device.formatEnum(DRYER_COURSES, dryer[5]))
+        this.publishProperty('dryer/reserve_time', dryer.readUInt16BE(7))
+        this.publishProperty('dryer/remaining_time', dryer.readUInt16BE(9))
+        this.publishProperty('dryer/initial_time', dryer.readUInt16BE(11))
 
-        const dryerState = block[66]
+        const dryerState = dryer[13]
         this.publishProperty('dryer/power', dryerState !== 0 ? 'ON' : 'OFF')
         this.publishProperty('dryer/state', Device.formatEnum(DRYER_STATES, dryerState))
-        this.publishProperty('dryer/error', Device.formatEnum(DRYER_ERRORS, block[68]))
-        this.publishProperty('dryer/buzzer', Device.formatEnum(DEVICE_BUZZER, block[72]))
-        this.publishProperty('dryer/duct_clogging', Device.formatEnum(DRYER_DUCT_CLOGGING, block[75]))
-        this.publishProperty('dryer/remote_start', block[79] & 0x40 ? 'ON' : 'OFF')
-        this.publishProperty('dryer/child_lock', block[79] & 0x10 ? 'ON' : 'OFF')
-        this.publishProperty('dryer/remote_maintain', block[80] & 0x02 ? 'ON' : 'OFF')
+        this.publishProperty('dryer/error', Device.formatEnum(DRYER_ERRORS, dryer[15]))
+        this.publishProperty('dryer/buzzer', Device.formatEnum(DEVICE_BUZZER, dryer[19]))
+        this.publishProperty('dryer/duct_clogging', Device.formatEnum(DRYER_DUCT_CLOGGING, dryer[22]))
+        this.publishProperty('dryer/remote_start', dryer[26] & 0x40 ? 'ON' : 'OFF')
+        this.publishProperty('dryer/child_lock', dryer[26] & 0x10 ? 'ON' : 'OFF')
+        this.publishProperty('dryer/remote_maintain', dryer[27] & 0x02 ? 'ON' : 'OFF')
     }
 }

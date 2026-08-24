@@ -17,6 +17,13 @@ const META: Metadata = {
 const KOREAN_FULL_STATE =
     'aaff360a0078000106000100eb0066013900000000002e00000000000000000000000000002e000100000000002b0402022d3c00000000000430000000000000040000000000000000002a000000000000000000000000000001000000000000000000000000000700000000000000000000000000ec91bb'
 
+const WASHER_POWER_OFF_STATUS =
+    'aa7336e600020133010200013900000000002e00000000000000000000000000002e000100000000002b0402022d3c00000000000430000000000000040000000000000000002a00020200002e000000006e006e010000000000042e000000200000800700000000000000000000000000babb'
+const WASHER_POWER_ON_STATUS =
+    'aa7336e600020133010200013900030302062e00000000000000002100210001002e010000000000022b0402022d3c20000000000430000000000000040000000000000000002a00020200002e000000006e006e010000000000042e00000000000080070000000000000000000000000017bb'
+const WASHER_POWER_ON_PAIR =
+    'aaff360a00de00013f000100ec00cc013900000000002e00000000000000000000000000002e000100000000002b0402022d3c00000000000430000000000000040000000000000000002a00020200002e000000006e006e010000000000042e000000000000800700000000000000000000000000013900030302062e00000000000000002100210001002e010000000000022b0402022d3c20000000000430000000000000040000000000000000002a00020200002e000000006e006e010000000000042e000000000000800700000000000000000000000000a26cbb'
+
 function makeDevice() {
     const ha = new MockHAConnection()
     const thinq = new MockThinq2Device(DEVICE_ID, META)
@@ -49,6 +56,36 @@ describe('WTL_KPK_BDH_KR_01', () => {
         const { thinq, dev } = makeDevice()
         dev.start()
         assert.equal(hex(thinq.outbox.at(-1)!), 'AA0EF0ED1121010000001800B5BB')
+    })
+
+    test('uses the command-status response as immediate power feedback', () => {
+        const { ha, thinq } = makeDevice()
+
+        thinq.emit('data', buf(WASHER_POWER_ON_STATUS))
+        assert.equal(ha.devices[DEVICE_ID].properties['washer/power'], 'ON')
+        assert.equal(ha.devices[DEVICE_ID].properties['washer/state'], 'INITIAL')
+        assert.equal(ha.devices[DEVICE_ID].properties['dryer/power'], 'ON')
+        assert.equal(ha.devices[DEVICE_ID].properties['dryer/state'], 'INITIAL')
+        assert.equal(ha.devices[DEVICE_ID].properties['dryer/course'], 'CLOTHCARE')
+        assert.equal(ha.devices[DEVICE_ID].properties['dryer/remaining_time'], 110)
+
+        thinq.emit('data', buf(WASHER_POWER_OFF_STATUS))
+        assert.equal(ha.devices[DEVICE_ID].properties['washer/power'], 'OFF')
+        assert.equal(ha.devices[DEVICE_ID].properties['washer/state'], 'POWEROFF')
+        assert.equal(ha.devices[DEVICE_ID].properties['dryer/power'], 'ON')
+    })
+
+    test('uses the current half of a 0xde previous/current state pair', () => {
+        const { ha, thinq } = makeDevice()
+
+        thinq.emit('data', buf(WASHER_POWER_ON_PAIR))
+
+        assert.equal(ha.devices[DEVICE_ID].properties['washer/power'], 'ON')
+        assert.equal(ha.devices[DEVICE_ID].properties['washer/state'], 'INITIAL')
+        assert.equal(ha.devices[DEVICE_ID].properties['washer/remaining_time'], 33)
+        assert.equal(ha.devices[DEVICE_ID].properties['dryer/power'], 'ON')
+        assert.equal(ha.devices[DEVICE_ID].properties['dryer/state'], 'INITIAL')
+        assert.equal(ha.devices[DEVICE_ID].properties['dryer/remaining_time'], 110)
     })
 
     test('rejects a truncated Korean state block', () => {

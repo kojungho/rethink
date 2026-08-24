@@ -99,6 +99,7 @@ export default class Device extends RACDevice {
             pm1: { name: 'PM1.0', unit_of_measurement: 'μg/m³', icon: 'mdi:molecule' },
             pm2_5: { name: 'PM2.5', device_class: 'pm25', unit_of_measurement: 'μg/m³', icon: 'mdi:molecule' },
             pm10: { name: 'PM10', device_class: 'pm10', unit_of_measurement: 'μg/m³', icon: 'mdi:molecule' },
+            air_quality: { name: '종합 공기질', icon: 'mdi:air-filter' },
             filter_remaining: { name: '필터 잔여량', unit_of_measurement: '%', icon: 'mdi:air-filter' },
         } as const
         for (const [id, sensor] of Object.entries(sensors)) {
@@ -106,10 +107,103 @@ export default class Device extends RACDevice {
                 platform: 'sensor',
                 unique_id: `$deviceid-${id}`,
                 state_topic: `$this/${id}`,
-                state_class: 'measurement',
+                state_class: id === 'air_quality' ? undefined : 'measurement',
                 entity_category: id === 'filter_remaining' ? 'diagnostic' : undefined,
                 ...sensor,
             } as unknown as DeviceDiscovery['components'][string]
+        }
+
+        // ThinQ reports this field as remaining minutes on PAC, whereas the
+        // inherited RAC profile historically labelled the same tag as a
+        // percentage.
+        config.components.autodryremain = {
+            platform: 'sensor',
+            unique_id: '$deviceid-autodryremain',
+            state_topic: '$this/autodryremain-',
+            name: 'AI 건조 남은 시간',
+            icon: 'mdi:timer-sand',
+            device_class: 'duration',
+            unit_of_measurement: 'min',
+            state_class: 'measurement',
+            entity_category: 'diagnostic',
+        } as unknown as DeviceDiscovery['components'][string]
+
+        config.components.temperature_step = {
+            platform: 'select',
+            unique_id: '$deviceid-temperature-step',
+            name: '온도 조절 단위',
+            icon: 'mdi:thermometer-lines',
+            options: ['0.5℃', '1℃'],
+            entity_category: 'config',
+        } as unknown as DeviceDiscovery['components'][string]
+        this.addField(config, {
+            id: 0x1fb,
+            name: '',
+            comp: 'temperature_step',
+            read_xform: (raw) => (raw === 1 ? '1℃' : '0.5℃'),
+            write_xform: (val) => (val === '1℃' ? 1 : 0),
+            read_callback: (val) => {
+                this.updateTemperatureStep(val === '1℃' ? 1 : 0.5)
+                return true
+            },
+        })
+
+        config.components.filter_life = {
+            platform: 'sensor',
+            unique_id: '$deviceid-filter-life',
+            state_topic: '$this/filter_life',
+            name: '필터 전체 수명',
+            icon: 'mdi:air-filter',
+            device_class: 'duration',
+            unit_of_measurement: 'h',
+            state_class: 'measurement',
+            entity_category: 'diagnostic',
+        } as unknown as DeviceDiscovery['components'][string]
+        config.components.filter_used = {
+            platform: 'sensor',
+            unique_id: '$deviceid-filter-used',
+            state_topic: '$this/filter_used',
+            name: '필터 사용 시간',
+            icon: 'mdi:air-filter',
+            device_class: 'duration',
+            unit_of_measurement: 'h',
+            state_class: 'total_increasing',
+            entity_category: 'diagnostic',
+        } as unknown as DeviceDiscovery['components'][string]
+        for (const id of [0x355, 0x356]) {
+            this.addField(
+                config,
+                {
+                    id,
+                    name: '',
+                    comp: 'filter_life',
+                    readable: false,
+                    writable: false,
+                    read_callback: () => {
+                        this.publishFilterDetails()
+                        return false
+                    },
+                },
+                false,
+            )
+        }
+        config.components.filter_reset = {
+            platform: 'button',
+            unique_id: '$deviceid-filter-reset',
+            command_topic: '$this/filter_reset/set',
+            name: '필터 사용량 초기화',
+            icon: 'mdi:air-filter-remove',
+            entity_category: 'diagnostic',
+        } as unknown as DeviceDiscovery['components'][string]
+        this.fields_by_ha.filter_reset = {
+            name: '',
+            comp: '',
+            readable: false,
+            write_xform: (val) => (val === 'PRESS' ? 1 : undefined),
+            write_callback: () => {
+                this.send([1, 1, 2, 1, 1], [{ t: 0x355, v: 0 }])
+                return false
+            },
         }
 
         // PAC uses one power tag and five consecutive fan values. Present
@@ -283,7 +377,44 @@ export default class Device extends RACDevice {
         this.HA.publishProperty(this.id, 'pm1', buf[55])
         this.HA.publishProperty(this.id, 'pm10', buf[59])
         this.HA.publishProperty(this.id, 'humidity', buf[60])
+        this.HA.publishProperty(
+            this.id,
+            'air_quality',
+            ({ 0: '알 수 없음', 1: '좋음', 2: '보통', 3: '나쁨', 4: '매우 나쁨' } as Record<number, string>)[
+                buf[68]
+            ] ?? '알 수 없음',
+        )
         this.HA.publishProperty(this.id, 'filter_remaining', buf[286])
+        this.updateClimateAction(buf[160] !== 0)
+    }
+
+    private updateTemperatureStep(step: 0.5 | 1) {
+        const climate = this.config?.components.climate as unknown as Record<string, unknown> | undefined
+        if (!climate || climate.temp_step === step) return
+        climate.temp_step = step
+        climate.precision = step
+        this.publishConfig()
+    }
+
+    private publishFilterDetails() {
+        const remaining = this.raw_clip_state[0x355]
+        const life = this.raw_clip_state[0x356]
+        if (remaining == null || life == null || life <= 0) return
+        this.HA.publishProperty(this.id, 'filter_life', life)
+        this.HA.publishProperty(this.id, 'filter_used', Math.max(0, life - remaining))
+        this.HA.publishProperty(this.id, 'filter_remaining', Math.max(0, Math.min(100, Math.round((remaining / life) * 100))))
+    }
+
+    private updateClimateAction(compressorRunning: boolean) {
+        const power = this.raw_clip_state[fields.power]
+        const mode = this.raw_clip_state[fields.mode]
+        let action: string | undefined
+        if (power === 0) action = 'off'
+        else if (mode === 5) action = 'fan'
+        else if (!compressorRunning) action = 'idle'
+        else if (mode === 0) action = 'cooling'
+        else if (mode === 1) action = 'drying'
+        if (action) this.HA.publishProperty(this.id, 'climate-action', action)
     }
 
     processKeyValue(id: number, value: number) {

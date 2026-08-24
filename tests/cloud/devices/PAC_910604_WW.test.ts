@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import DUT from '@/cloud/devices/PAC_910604_WW'
 import type { Metadata } from '@/cloud/thinq'
 import { MockHAConnection, MockThinq2Device, buf } from '@/tests/helpers/mocks'
+import * as TLV from '@/util/tlv'
 
 const DEVICE_ID = 'test-id'
 const META: Metadata = { modelId: 'PAC_910604_WW', modelName: 'PAC_910604_WW', swVersion: '1.0' }
@@ -30,7 +31,12 @@ describe('PAC_910604_WW', () => {
             'pm1',
             'pm2_5',
             'pm10',
+            'air_quality',
             'filter_remaining',
+            'filter_life',
+            'filter_used',
+            'filter_reset',
+            'temperature_step',
             'energy_current',
             'uvnano',
             'air_quality_sensor',
@@ -106,9 +112,31 @@ describe('PAC_910604_WW', () => {
         assert.equal(ha.devices[DEVICE_ID].properties.pm1, 4)
         assert.equal(ha.devices[DEVICE_ID].properties.pm2_5, 4)
         assert.equal(ha.devices[DEVICE_ID].properties.pm10, 6)
+        assert.equal(ha.devices[DEVICE_ID].properties.air_quality, '좋음')
         assert.equal(ha.devices[DEVICE_ID].properties.filter_remaining, 86)
+        assert.equal(ha.getProperty(DEVICE_ID, 'climate', 'action'), 'idle')
         thinq.emit('data', CURRENT_TEMP)
         assert.equal(ha.getProperty(DEVICE_ID, 'climate', 'current_temperature'), 28)
+        dev.drop()
+    })
+    test('maps temperature step and detailed filter counters', () => {
+        const { ha, thinq, dev } = makeDevice()
+
+        dev.processKeyValue(0x1fb, 1)
+        assert.equal(ha.getProperty(DEVICE_ID, 'temperature_step', 'state'), '1℃')
+        const climate = ha.devices[DEVICE_ID].config!.components.climate as unknown as Record<string, unknown>
+        assert.equal(climate.temp_step, 1)
+        assert.equal(climate.precision, 1)
+
+        dev.processKeyValue(0x356, 3000)
+        dev.processKeyValue(0x355, 2580)
+        assert.equal(ha.devices[DEVICE_ID].properties.filter_life, 3000)
+        assert.equal(ha.devices[DEVICE_ID].properties.filter_used, 420)
+        assert.equal(ha.devices[DEVICE_ID].properties.filter_remaining, 86)
+
+        ha.setProperty(DEVICE_ID, 'filter_reset', 'command', 'PRESS')
+        const reset = TLV.parse(thinq.outbox.at(-1)!.subarray(11, -2))
+        assert.deepEqual(reset, [{ t: 0x355, l: 0, v: 0 }])
         dev.drop()
     })
     test('maps PAC-specific controls', () => {

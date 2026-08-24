@@ -95,10 +95,12 @@ type BridgeEvents = {
     loggedOut: () => void
     started: (id: string) => void
     stopped: (id: string) => void
+    aliasesChanged: () => void
 }
 
 export class Bridge extends TypedEmitter<BridgeEvents> {
     bridgedDevices = new Map<string, BridgedDevice>()
+    private deviceAliases = new Map<string, string>()
 
     constructor(
         readonly state: BridgeState,
@@ -108,6 +110,11 @@ export class Bridge extends TypedEmitter<BridgeEvents> {
         this.manager.on('newDevice', this.#start.bind(this))
         this.manager.on('dropDevice', this.#stop.bind(this))
         Object.values(this.manager.allDevices).forEach(this.#start.bind(this))
+
+        // The alias is the user-visible name configured in the LG ThinQ app.
+        // Fetch it independently of bridge enablement so every connected device
+        // can be labelled in the management panel.
+        void this.refreshDeviceAliases()
     }
 
     #start(dev: AnyDevice) {
@@ -163,6 +170,42 @@ export class Bridge extends TypedEmitter<BridgeEvents> {
         return !!this.state.getCredentials()
     }
 
+    getDeviceAlias(id: string) {
+        return this.deviceAliases.get(id)
+    }
+
+    async refreshDeviceAliases() {
+        const creds = this.state.getCredentials()
+        if (!creds) {
+            if (this.deviceAliases.size) {
+                this.deviceAliases.clear()
+                this.emit('aliasesChanged')
+            }
+            return
+        }
+
+        try {
+            const client = new ThinqClient(creds.env)
+            await client.auth(creds.refreshToken)
+            const devices = await client.listDevices()
+            const aliases = new Map<string, string>()
+            for (const device of devices) {
+                if (typeof device.alias !== 'string') continue
+                const alias = device.alias.trim()
+                if (alias) aliases.set(device.deviceId, alias)
+            }
+
+            const changed =
+                aliases.size !== this.deviceAliases.size ||
+                [...aliases].some(([id, alias]) => this.deviceAliases.get(id) !== alias)
+            this.deviceAliases = aliases
+            if (changed) this.emit('aliasesChanged')
+        } catch {
+            // A temporary ThinQ API failure must not affect local device control.
+            console.warn('Unable to refresh LG ThinQ device names')
+        }
+    }
+
     async beginLogin(env: Environment): Promise<URL> {
         const client = new ThinqClient(env)
         const base = await client.getUrls()
@@ -181,6 +224,7 @@ export class Bridge extends TypedEmitter<BridgeEvents> {
                 env,
                 refreshToken: token.refreshToken,
             })
+            await this.refreshDeviceAliases()
             this.emit('loggedIn')
             return true
         } catch (err) {
@@ -190,6 +234,8 @@ export class Bridge extends TypedEmitter<BridgeEvents> {
 
     logout() {
         this.state.setCredentials(undefined)
+        this.deviceAliases.clear()
+        this.emit('aliasesChanged')
         // FIXME? drop all devices
         this.emit('loggedOut')
     }

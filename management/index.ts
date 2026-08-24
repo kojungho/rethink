@@ -103,6 +103,7 @@ export function app(
             const dev = manager.allDevices[id]
             const meta = dev.meta
             allDevices[id] = {
+                name: bridge?.getDeviceAlias(id),
                 model: meta.modelId,
                 deviceType: meta.deviceType,
                 platform: dev.platform,
@@ -129,6 +130,10 @@ export function app(
     })
 
     if (bridge) {
+        const onAliasesChanged = () => refreshDevices()
+        bridge.on('aliasesChanged', onAliasesChanged)
+        disposers.push(() => bridge.removeListener('aliasesChanged', onAliasesChanged))
+
         app.get(
             '/thinq_login',
             asyncHandler(async (req, res) => {

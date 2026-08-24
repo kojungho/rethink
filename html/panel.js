@@ -57,6 +57,10 @@ class DeviceEntry {
 
         let td
         td = document.createElement('td')
+        td.innerText = this.remoteState.name || '—'
+        children.push(td)
+
+        td = document.createElement('td')
         td.innerText = this.id
         children.push(td)
 

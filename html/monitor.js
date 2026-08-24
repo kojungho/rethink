@@ -13,6 +13,7 @@ get('device_status').innerText = rethinkI18n.t('status.waiting', 'Waiting for re
 document.querySelectorAll('[data-message-filter]').forEach((button) => {
     button.onclick = () => setMessageFilter(button.dataset.messageFilter)
 })
+get('clear_messages').onclick = clearMessageHistory
 
 get('capture_start').onclick = () => {
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ captureStart: true }))
@@ -176,6 +177,15 @@ function setMessageFilter(filter) {
 
 function updateMessageCounts() {
     for (const filter of ['all', 'mapped', 'unmapped']) get(`count_${filter}`).innerText = messageCounts[filter]
+}
+
+function clearMessageHistory() {
+    get('messages').replaceChildren()
+    messageSequence = 0
+    messageCounts.all = 0
+    messageCounts.mapped = 0
+    messageCounts.unmapped = 0
+    updateMessageCounts()
 }
 
 function get(id) {

@@ -41,6 +41,7 @@
         All: '전체',
         Mapped: '매핑됨',
         Unmapped: '미매핑',
+        'Clear history': '이력 지우기',
         'Auto-scroll': '자동 스크롤',
         Off: '끔',
         On: '켬',

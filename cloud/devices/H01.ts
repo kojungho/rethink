@@ -75,6 +75,7 @@ export default class Device extends AABBDevice {
     private remoteStart = {
         course: REMOTE_COURSES.AUTO,
         delay: 0,
+        steam: false,
         highTemp: false,
         extraDry: false,
         extraRinse: 0,
@@ -226,6 +227,15 @@ export default class Device extends AABBDevice {
                         payload_off: 'OFF',
                         icon: 'mdi:thermometer-high',
                     },
+                    steam: {
+                        platform: 'binary_sensor',
+                        unique_id: '$deviceid-steam',
+                        state_topic: '$this/steam',
+                        name: 'Steam',
+                        payload_on: 'ON',
+                        payload_off: 'OFF',
+                        icon: 'mdi:weather-fog',
+                    },
                     remote_start_active: {
                         platform: 'binary_sensor',
                         unique_id: '$deviceid-remote-start-active',
@@ -320,6 +330,15 @@ export default class Device extends AABBDevice {
                         name: 'Remote high temperature',
                         icon: 'mdi:thermometer-high',
                     },
+                    remote_steam: {
+                        platform: 'switch',
+                        unique_id: '$deviceid-remote-steam',
+                        state_topic: '$this/remote_steam',
+                        command_topic: '$this/remote_steam/set',
+                        optimistic: true,
+                        name: 'Remote steam',
+                        icon: 'mdi:weather-fog',
+                    },
                     remote_extra_dry: {
                         platform: 'switch',
                         unique_id: '$deviceid-remote-extra-dry',
@@ -391,6 +410,7 @@ export default class Device extends AABBDevice {
     start() {
         this.publishProperty('remote_course', 'AUTO')
         this.publishProperty('remote_delay', 0)
+        this.publishProperty('remote_steam', 'OFF')
         this.publishProperty('remote_high_temp', 'OFF')
         this.publishProperty('remote_extra_dry', 'OFF')
         this.publishProperty('remote_extra_rinse', 0)
@@ -447,6 +467,7 @@ export default class Device extends AABBDevice {
         this.publishProperty('auto_dry', data[11] & 0x10 ? 'ON' : 'OFF')
         this.publishProperty('extra_dry', data[12] & 0x04 ? 'ON' : 'OFF')
         this.publishProperty('high_temp', data[12] & 0x08 ? 'ON' : 'OFF')
+        this.publishProperty('steam', data[12] & 0x80 ? 'ON' : 'OFF')
         this.publishProperty('rinse_level', data[13])
         this.publishProperty('salt_level', data[14])
         this.publishProperty('remote_start_active', data[15] & 0x02 ? 'ON' : 'OFF')
@@ -510,6 +531,9 @@ export default class Device extends AABBDevice {
         } else if (prop === 'remote_high_temp') {
             this.remoteStart.highTemp = value === 'ON'
             this.publishProperty(prop, this.remoteStart.highTemp ? 'ON' : 'OFF')
+        } else if (prop === 'remote_steam') {
+            this.remoteStart.steam = value === 'ON'
+            this.publishProperty(prop, this.remoteStart.steam ? 'ON' : 'OFF')
         } else if (prop === 'remote_extra_dry') {
             this.remoteStart.extraDry = value === 'ON'
             this.publishProperty(prop, this.remoteStart.extraDry ? 'ON' : 'OFF')
@@ -555,7 +579,10 @@ export default class Device extends AABBDevice {
     }
 
     private sendRemoteStart() {
-        const options = (this.remoteStart.highTemp ? 0x08 : 0) | (this.remoteStart.extraDry ? 0x04 : 0)
+        const options =
+            (this.remoteStart.steam ? 0x80 : 0) |
+            (this.remoteStart.highTemp ? 0x08 : 0) |
+            (this.remoteStart.extraDry ? 0x04 : 0)
         const rinse =
             (this.remoteStart.extraRinse * 0x08) |
             (this.remoteStart.course === REMOTE_COURSES.DOWNLOAD_CYCLE ? 0x40 : 0)

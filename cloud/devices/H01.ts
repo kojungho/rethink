@@ -386,6 +386,10 @@ export default class Device extends AABBDevice {
                     },
                 },
             }),
+            {
+                steam: { platform: 'binary_sensor' },
+                remote_steam: { platform: 'switch' },
+            },
         )
     }
 
@@ -431,8 +435,7 @@ export default class Device extends AABBDevice {
     }
 
     private publishStatus(status: Buffer) {
-        if (status.length !== 2 + STATUS_DATA_LENGTH || status[0] !== 0x00 || status[1] !== STATUS_DATA_LENGTH)
-            return
+        if (status.length !== 2 + STATUS_DATA_LENGTH || status[0] !== 0x00 || status[1] !== STATUS_DATA_LENGTH) return
 
         const data = status.subarray(2)
         const downloadedCourse = data[20]

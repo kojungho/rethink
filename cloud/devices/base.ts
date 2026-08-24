@@ -3,6 +3,7 @@ import type { Connection, DeviceDiscovery } from '../homeassistant'
 
 export default class HADevice {
     config: DeviceDiscovery | undefined
+    private removedComponents: Record<string, { platform: string }> = {}
 
     static config(meta: Metadata, deviceInfo?: object): DeviceDiscovery {
         return {
@@ -28,8 +29,9 @@ export default class HADevice {
         readonly id: string,
     ) {}
 
-    setConfig(config: DeviceDiscovery) {
+    setConfig(config: DeviceDiscovery, removedComponents?: Record<string, { platform: string }>) {
         this.config = config
+        this.removedComponents = removedComponents ?? {}
         this.publishConfig()
     }
 
@@ -43,6 +45,14 @@ export default class HADevice {
     publishConfig() {
         if (this.config) {
             this.HA.publishProperty(this.id, 'availability', 'online')
+            if (Object.keys(this.removedComponents).length) {
+                // MQTT device discovery removes one component when an update contains
+                // only its platform. Follow with the normal config, where it is omitted.
+                this.HA.publishConfig(this.id, {
+                    ...this.config,
+                    components: { ...this.config.components, ...this.removedComponents },
+                } as DeviceDiscovery)
+            }
             this.HA.publishConfig(this.id, this.config)
         }
     }

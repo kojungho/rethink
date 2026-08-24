@@ -43,6 +43,24 @@ describe('H01', () => {
         assert.equal(components.protocol_status.entity_category, 'diagnostic')
     })
 
+    test('removes the retired Steam components before publishing the normal config', () => {
+        const ha = new MockHAConnection()
+        const configs: Array<Record<string, Record<string, unknown>>> = []
+        const publishConfig = ha.publishConfig.bind(ha)
+        ha.publishConfig = (id, config) => {
+            configs.push(config.components as Record<string, Record<string, unknown>>)
+            publishConfig(id, config)
+        }
+
+        new DUT(ha.asConnection(), new MockThinq2Device(DEVICE_ID, META), META)
+
+        assert.equal(configs.length, 2)
+        assert.deepEqual(configs[0].steam, { platform: 'binary_sensor' })
+        assert.deepEqual(configs[0].remote_steam, { platform: 'switch' })
+        assert.equal(configs[1].steam, undefined)
+        assert.equal(configs[1].remote_steam, undefined)
+    })
+
     test('start publishes remote defaults and sends the standard full-state query', () => {
         const { ha, thinq, dev } = makeDevice()
         dev.start()

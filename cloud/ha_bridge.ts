@@ -22,6 +22,7 @@ import RV13B6BSD_D_US_WIFI from './devices/RV13B6BSD_D_US_WIFI'
 import WTL_FXU_BDV_NA_01 from './devices/WTL_FXU_BDV_NA_01'
 import WTL_KPK_BDH_KR_01 from './devices/WTL_KPK_BDH_KR_01'
 import H01 from './devices/H01'
+import HWWA9XC_F2U from './devices/HWWA9XC_F2U'
 import PAC_910604_WW from './devices/PAC_910604_WW'
 import { Device as T1Device } from './thinq1/device'
 import { Device as T2Device } from './thinq2/device'
@@ -64,6 +65,7 @@ const t2deviceTypes: Record<string, T2Factory> = {
     WTL_FXU_BDV_NA_01, // LG WashTower
     WTL_KPK_BDH_KR_01, // Korean WashTower variant with a 102-byte 0x78 full-state response
     H01, // LG dishwasher; preliminary read-only status support
+    HWWA9XC_F2U, // LG CordZero stick cleaner; read-only state, operation mode, and battery
     PAC_910604_WW,
 }
 

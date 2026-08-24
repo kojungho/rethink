@@ -114,6 +114,27 @@ describe(MODEL_ID, () => {
         assert.equal((components.dryer_remote_maintain as Record<string, unknown>).entity_category, 'config')
     })
 
+    test('recreates settings components so Home Assistant applies their config category', () => {
+        const ha = new MockHAConnection()
+        const configs: Array<Record<string, Record<string, unknown>>> = []
+        const publishConfig = ha.publishConfig.bind(ha)
+        ha.publishConfig = (id, config) => {
+            configs.push(config.components as Record<string, Record<string, unknown>>)
+            publishConfig(id, config)
+        }
+
+        new DUT(ha.asConnection(), new MockThinq2Device(DEVICE_ID, META), META)
+
+        assert.equal(configs.length, 2)
+        assert.deepEqual(configs[0].washer_buzzer, { platform: 'select' })
+        assert.deepEqual(configs[0].dryer_buzzer, { platform: 'select' })
+        assert.deepEqual(configs[0].washer_remote_maintain, { platform: 'switch' })
+        assert.deepEqual(configs[0].dryer_remote_maintain, { platform: 'switch' })
+        assert.deepEqual(configs[0].init_lcd, { platform: 'select' })
+        assert.equal(configs[1].washer_buzzer.entity_category, 'config')
+        assert.equal(configs[1].dryer_remote_maintain.entity_category, 'config')
+    })
+
     test('0xd0 status packet decodes washer state', () => {
         const { ha, thinq } = makeDevice()
         thinq.emit('data', buf(STATUS_WASHER_RUNNING))

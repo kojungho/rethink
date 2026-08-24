@@ -860,6 +860,13 @@ export default class Device extends AABBDevice {
                     },
                 },
             }),
+            {
+                washer_buzzer: { platform: 'select' },
+                dryer_buzzer: { platform: 'select' },
+                washer_remote_maintain: { platform: 'switch' },
+                dryer_remote_maintain: { platform: 'switch' },
+                init_lcd: { platform: 'select' },
+            },
         )
     }
 

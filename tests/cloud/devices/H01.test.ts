@@ -33,11 +33,11 @@ describe('H01', () => {
         assert.equal(components.door.platform, 'binary_sensor')
         assert.equal(components.rinse_level.platform, 'number')
         assert.equal(components.auto_dry.platform, 'switch')
-        assert.equal(components.steam.platform, 'binary_sensor')
         assert.equal(components.power.platform, 'switch')
         assert.equal(components.pause.platform, 'button')
         assert.equal(components.remote_course.platform, 'select')
-        assert.equal(components.remote_steam.platform, 'switch')
+        assert.equal(components.steam, undefined)
+        assert.equal(components.remote_steam, undefined)
         assert.equal(components.remote_start.platform, 'button')
         assert.equal(components.energy_total.device_class, 'energy')
         assert.equal(components.protocol_status.entity_category, 'diagnostic')
@@ -49,7 +49,6 @@ describe('H01', () => {
 
         assert.equal(ha.devices[DEVICE_ID].properties.remote_course, 'AUTO')
         assert.equal(ha.devices[DEVICE_ID].properties.remote_delay, 0)
-        assert.equal(ha.devices[DEVICE_ID].properties.remote_steam, 'OFF')
         assert.equal(ha.devices[DEVICE_ID].properties.remote_high_temp, 'OFF')
         assert.equal(ha.devices[DEVICE_ID].properties.remote_extra_dry, 'OFF')
         assert.equal(ha.devices[DEVICE_ID].properties.remote_extra_rinse, 0)
@@ -120,7 +119,6 @@ describe('H01', () => {
         assert.equal(properties.auto_dry, 'ON')
         assert.equal(properties.extra_dry, 'ON')
         assert.equal(properties.high_temp, 'ON')
-        assert.equal(properties.steam, 'OFF')
         assert.equal(properties.rinse_level, 3)
         assert.equal(properties.salt_level, 4)
         assert.equal(properties.remote_start_active, 'ON')
@@ -190,28 +188,30 @@ describe('H01', () => {
         const { thinq, dev } = makeDevice()
         dev.setProperty('remote_course', 'DOWNLOAD_CYCLE')
         dev.setProperty('remote_delay', '12')
-        dev.setProperty('remote_steam', 'ON')
         dev.setProperty('remote_high_temp', 'ON')
         dev.setProperty('remote_extra_dry', 'ON')
         dev.setProperty('remote_extra_rinse', '3')
         dev.setProperty('remote_start', '')
 
-        assert.equal(hex(thinq.outbox.at(-1)!), 'AA0DF026100B0C008C58008DBB')
+        assert.equal(hex(thinq.outbox.at(-1)!), 'AA0DF026100B0C000C58000DBB')
     })
 
-    test('decodes and sends the captured steam option bit', () => {
-        const { ha, thinq, dev } = makeDevice()
+    test('uses the final 0x0018 status and skips an interleaved 0x050d statistics block', () => {
+        const { ha, thinq } = makeDevice()
+        const previous = Buffer.alloc(24)
+        previous[0] = 0x01
         const current = Buffer.alloc(24)
-        current[0] = 0x02
-        current[12] = 0x80
-        thinq.emit('data', frame(Buffer.concat([Buffer.from([0x32, 0xec]), statusBlock(), statusBlock(current)])))
+        current[0] = 0x03
+        current[5] = 0x12
+        const statistics = Buffer.concat([Buffer.from([0x05, 0x0d]), Buffer.alloc(13, 0xaa)])
 
-        assert.equal(ha.devices[DEVICE_ID].properties.steam, 'ON')
+        thinq.emit(
+            'data',
+            frame(Buffer.concat([Buffer.from([0x32, 0xec]), statusBlock(previous), statistics, statusBlock(current)])),
+        )
 
-        dev.setProperty('remote_course', 'AUTO')
-        dev.setProperty('remote_steam', 'ON')
-        dev.setProperty('remote_start', '')
-        assert.equal(hex(thinq.outbox.at(-1)!), 'AA0DF026100100008000000BBB')
+        assert.equal(ha.devices[DEVICE_ID].properties.state, 'PAUSE')
+        assert.equal(ha.devices[DEVICE_ID].properties.course, 'ONE_HOUR')
     })
 
     test('ignores unknown and malformed frames', () => {

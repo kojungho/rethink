@@ -5,7 +5,6 @@ import { type Connection } from '../homeassistant'
 import { type Metadata } from '../thinq'
 import { allowExtendedType } from '@/util/casting'
 
-const STATUS_BLOCK_LENGTH = 26
 const STATUS_DATA_LENGTH = 24
 
 const STATES: Record<number, string> = {
@@ -58,10 +57,12 @@ function formatEnum(values: Record<number, string>, value: number) {
 /**
  * Korean H01 dishwasher (ThinQ device type 204).
  *
- * Status frames use 0x32eb for the initial state and 0x32ec for an
- * old/current pair. Each state block is tagged 0x0018 and contains 24 bytes.
- * Status fields come from appliance captures. Control frames follow the H11
- * device-type-204 analysis and are exposed for subsequent H01 validation.
+ * Status frames use tagged blocks. Tag 0x00 with length 0x18 contains the
+ * 24-byte operating state, while tag 0x05 contains statistics that are ignored.
+ * A 0x32ec update can contain previous and current states; the final 0x0018
+ * block is current. Controls follow the verified H11 device-type-204 mapping.
+ * Model-specific Steam fields are intentionally excluded until independently
+ * verified from both ON and OFF control captures.
  */
 export default class Device extends AABBDevice {
     private settings = {
@@ -75,7 +76,6 @@ export default class Device extends AABBDevice {
     private remoteStart = {
         course: REMOTE_COURSES.AUTO,
         delay: 0,
-        steam: false,
         highTemp: false,
         extraDry: false,
         extraRinse: 0,
@@ -227,15 +227,6 @@ export default class Device extends AABBDevice {
                         payload_off: 'OFF',
                         icon: 'mdi:thermometer-high',
                     },
-                    steam: {
-                        platform: 'binary_sensor',
-                        unique_id: '$deviceid-steam',
-                        state_topic: '$this/steam',
-                        name: 'Steam',
-                        payload_on: 'ON',
-                        payload_off: 'OFF',
-                        icon: 'mdi:weather-fog',
-                    },
                     remote_start_active: {
                         platform: 'binary_sensor',
                         unique_id: '$deviceid-remote-start-active',
@@ -330,15 +321,6 @@ export default class Device extends AABBDevice {
                         name: 'Remote high temperature',
                         icon: 'mdi:thermometer-high',
                     },
-                    remote_steam: {
-                        platform: 'switch',
-                        unique_id: '$deviceid-remote-steam',
-                        state_topic: '$this/remote_steam',
-                        command_topic: '$this/remote_steam/set',
-                        optimistic: true,
-                        name: 'Remote steam',
-                        icon: 'mdi:weather-fog',
-                    },
                     remote_extra_dry: {
                         platform: 'switch',
                         unique_id: '$deviceid-remote-extra-dry',
@@ -410,7 +392,6 @@ export default class Device extends AABBDevice {
     start() {
         this.publishProperty('remote_course', 'AUTO')
         this.publishProperty('remote_delay', 0)
-        this.publishProperty('remote_steam', 'OFF')
         this.publishProperty('remote_high_temp', 'OFF')
         this.publishProperty('remote_extra_dry', 'OFF')
         this.publishProperty('remote_extra_rinse', 0)
@@ -420,10 +401,10 @@ export default class Device extends AABBDevice {
     processAABB(buf: Buffer) {
         if (buf[0] !== 0x32) return
 
-        if (buf[1] === 0xeb && buf.length === 2 + STATUS_BLOCK_LENGTH) {
-            this.publishStatus(buf.subarray(2))
-        } else if (buf[1] === 0xec && buf.length === 2 + STATUS_BLOCK_LENGTH * 2) {
-            this.publishStatus(buf.subarray(2 + STATUS_BLOCK_LENGTH))
+        if (buf[1] === 0xeb || buf[1] === 0xec) {
+            const statuses = this.statusBlocks(buf.subarray(2))
+            const current = statuses[statuses.length - 1]
+            if (current) this.publishStatus(current)
         } else if (buf[1] === 0x3e && buf.length === 7) {
             this.publishProperty('energy_delta', buf.readUInt16BE(2))
             this.publishProperty('energy_total', buf.readUInt16BE(4))
@@ -432,8 +413,26 @@ export default class Device extends AABBDevice {
         }
     }
 
+    private statusBlocks(payload: Buffer) {
+        const statuses: Buffer[] = []
+        let offset = 0
+
+        while (offset + 2 <= payload.length) {
+            const tag = payload[offset]
+            const length = payload[offset + 1]
+            const end = offset + 2 + length
+            if (end > payload.length) break
+
+            if (tag === 0x00 && length === STATUS_DATA_LENGTH) statuses.push(payload.subarray(offset, end))
+            offset = end
+        }
+
+        return statuses
+    }
+
     private publishStatus(status: Buffer) {
-        if (status.length !== STATUS_BLOCK_LENGTH || status[0] !== 0x00 || status[1] !== STATUS_DATA_LENGTH) return
+        if (status.length !== 2 + STATUS_DATA_LENGTH || status[0] !== 0x00 || status[1] !== STATUS_DATA_LENGTH)
+            return
 
         const data = status.subarray(2)
         const downloadedCourse = data[20]
@@ -467,7 +466,6 @@ export default class Device extends AABBDevice {
         this.publishProperty('auto_dry', data[11] & 0x10 ? 'ON' : 'OFF')
         this.publishProperty('extra_dry', data[12] & 0x04 ? 'ON' : 'OFF')
         this.publishProperty('high_temp', data[12] & 0x08 ? 'ON' : 'OFF')
-        this.publishProperty('steam', data[12] & 0x80 ? 'ON' : 'OFF')
         this.publishProperty('rinse_level', data[13])
         this.publishProperty('salt_level', data[14])
         this.publishProperty('remote_start_active', data[15] & 0x02 ? 'ON' : 'OFF')
@@ -531,9 +529,6 @@ export default class Device extends AABBDevice {
         } else if (prop === 'remote_high_temp') {
             this.remoteStart.highTemp = value === 'ON'
             this.publishProperty(prop, this.remoteStart.highTemp ? 'ON' : 'OFF')
-        } else if (prop === 'remote_steam') {
-            this.remoteStart.steam = value === 'ON'
-            this.publishProperty(prop, this.remoteStart.steam ? 'ON' : 'OFF')
         } else if (prop === 'remote_extra_dry') {
             this.remoteStart.extraDry = value === 'ON'
             this.publishProperty(prop, this.remoteStart.extraDry ? 'ON' : 'OFF')
@@ -579,10 +574,7 @@ export default class Device extends AABBDevice {
     }
 
     private sendRemoteStart() {
-        const options =
-            (this.remoteStart.steam ? 0x80 : 0) |
-            (this.remoteStart.highTemp ? 0x08 : 0) |
-            (this.remoteStart.extraDry ? 0x04 : 0)
+        const options = (this.remoteStart.highTemp ? 0x08 : 0) | (this.remoteStart.extraDry ? 0x04 : 0)
         const rinse =
             (this.remoteStart.extraRinse * 0x08) |
             (this.remoteStart.course === REMOTE_COURSES.DOWNLOAD_CYCLE ? 0x40 : 0)

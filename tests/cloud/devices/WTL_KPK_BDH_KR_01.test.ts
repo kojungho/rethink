@@ -36,6 +36,15 @@ function makeDevice() {
 }
 
 describe('WTL_KPK_BDH_KR_01', () => {
+    test('publishes the ThinQ cycle count as a cumulative Korean washer sensor', () => {
+        const { ha } = makeDevice()
+        const components = ha.devices[DEVICE_ID].config!.components as Record<string, Record<string, unknown>>
+
+        assert.equal(components.washer_cycle_count.platform, 'sensor')
+        assert.equal(components.washer_cycle_count.name, '세탁기 누적 세탁 횟수')
+        assert.equal(components.washer_cycle_count.state_class, 'total_increasing')
+    })
+
     test('decodes the captured 102-byte Korean full-state response', () => {
         const { ha, thinq } = makeDevice()
         const mapped: boolean[] = []
@@ -49,6 +58,7 @@ describe('WTL_KPK_BDH_KR_01', () => {
         assert.equal(properties['washer/course'], 'NORMAL')
         assert.equal(properties['washer/buzzer'], 'Very High')
         assert.equal(properties['washer/remaining_time'], 0)
+        assert.equal(properties['washer/cycle_count'], 43)
         assert.equal(properties['dryer/power'], 'OFF')
         assert.equal(properties['dryer/state'], 'POWEROFF')
         assert.equal(properties['dryer/course'], 'NOT_SELECTED')
@@ -87,6 +97,7 @@ describe('WTL_KPK_BDH_KR_01', () => {
         assert.equal(ha.devices[DEVICE_ID].properties['washer/power'], 'ON')
         assert.equal(ha.devices[DEVICE_ID].properties['washer/state'], 'INITIAL')
         assert.equal(ha.devices[DEVICE_ID].properties['washer/remaining_time'], 33)
+        assert.equal(ha.devices[DEVICE_ID].properties['washer/cycle_count'], 43)
         assert.equal(ha.devices[DEVICE_ID].properties['dryer/power'], 'ON')
         assert.equal(ha.devices[DEVICE_ID].properties['dryer/state'], 'INITIAL')
         assert.equal(ha.devices[DEVICE_ID].properties['dryer/remaining_time'], 110)
@@ -97,6 +108,7 @@ describe('WTL_KPK_BDH_KR_01', () => {
 
         thinq.emit('data', buf(WASHER_LAUNDRY_CARE_ON_STATUS))
         assert.equal(ha.devices[DEVICE_ID].properties['washer/laundry_care'], 'ON')
+        assert.equal(ha.devices[DEVICE_ID].properties['washer/cycle_count'], 44)
 
         thinq.emit('data', buf(WASHER_LAUNDRY_CARE_OFF_STATUS))
         assert.equal(ha.devices[DEVICE_ID].properties['washer/laundry_care'], 'OFF')

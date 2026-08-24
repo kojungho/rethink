@@ -592,6 +592,14 @@ export default class Device extends AABBDevice {
                         unit_of_measurement: 'min',
                         name: '세탁기 전체 시간',
                     },
+                    washer_cycle_count: {
+                        platform: 'sensor',
+                        unique_id: '$deviceid-washer-cycle-count',
+                        state_topic: '$this/washer/cycle_count',
+                        state_class: 'total_increasing',
+                        name: '세탁기 누적 세탁 횟수',
+                        icon: 'mdi:counter',
+                    },
                     washer_temp: {
                         platform: 'sensor',
                         unique_id: '$deviceid-washer-temp',
@@ -759,7 +767,7 @@ export default class Device extends AABBDevice {
                         state_topic: '$this/washer/remote_start',
                         payload_on: 'ON',
                         payload_off: 'OFF',
-                        name: '세탁기 원격 시작',
+                        name: '세탁기 원격 제어 가능',
                         icon: 'mdi:remote',
                     },
                     washer_remote_maintain: {
@@ -1051,6 +1059,7 @@ export default class Device extends AABBDevice {
         this.publishProperty('washer/energy', block.readUInt16BE(19))
         this.publishProperty('washer/load_level', Device.formatEnum(WASHER_LOAD_LEVEL, block[26]))
         this.publishProperty('washer/rinse_count', Device.formatEnum(WASHER_RINSE_COUNT, block[29]))
+        this.publishProperty('washer/cycle_count', block[30])
         this.publishProperty('washer/laundry_texture', block[43]) // Reported as integer value
 
         //

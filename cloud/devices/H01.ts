@@ -79,8 +79,6 @@ export default class Device extends AABBDevice {
     private remoteStart = {
         course: REMOTE_COURSES.AUTO,
         delay: 0,
-        highTemp: false,
-        extraDry: false,
         extraRinse: 0,
     }
 
@@ -247,7 +245,7 @@ export default class Device extends AABBDevice {
                         platform: 'binary_sensor',
                         unique_id: '$deviceid-remote-start-active',
                         state_topic: '$this/remote_start_active',
-                        name: '원격 시작 활성화',
+                        name: '원격 제어 가능',
                         payload_on: 'ON',
                         payload_off: 'OFF',
                         icon: 'mdi:remote',
@@ -328,24 +326,6 @@ export default class Device extends AABBDevice {
                         name: '원격 예약 시간',
                         icon: 'mdi:timer-outline',
                     },
-                    remote_high_temp: {
-                        platform: 'switch',
-                        unique_id: '$deviceid-remote-high-temp',
-                        state_topic: '$this/remote_high_temp',
-                        command_topic: '$this/remote_high_temp/set',
-                        optimistic: true,
-                        name: '원격 고온',
-                        icon: 'mdi:thermometer-high',
-                    },
-                    remote_extra_dry: {
-                        platform: 'switch',
-                        unique_id: '$deviceid-remote-extra-dry',
-                        state_topic: '$this/remote_extra_dry',
-                        command_topic: '$this/remote_extra_dry/set',
-                        optimistic: true,
-                        name: '원격 추가 건조',
-                        icon: 'mdi:heat-wave',
-                    },
                     remote_extra_rinse: {
                         platform: 'number',
                         unique_id: '$deviceid-remote-extra-rinse',
@@ -404,6 +384,8 @@ export default class Device extends AABBDevice {
             }),
             {
                 remote_steam: { platform: 'switch' },
+                remote_high_temp: { platform: 'switch' },
+                remote_extra_dry: { platform: 'switch' },
                 brightness: { platform: 'select' },
                 auto_dry: { platform: 'switch' },
             },
@@ -413,8 +395,6 @@ export default class Device extends AABBDevice {
     start() {
         this.publishProperty('remote_course', 'AUTO')
         this.publishProperty('remote_delay', 0)
-        this.publishProperty('remote_high_temp', 'OFF')
-        this.publishProperty('remote_extra_dry', 'OFF')
         this.publishProperty('remote_extra_rinse', 0)
         this.send(Buffer.from('F0ED1211010000010400', 'hex'))
     }
@@ -574,12 +554,6 @@ export default class Device extends AABBDevice {
         } else if (prop === 'remote_delay') {
             this.remoteStart.delay = this.clampedInteger(value, 0, 12)
             this.publishProperty(prop, this.remoteStart.delay)
-        } else if (prop === 'remote_high_temp') {
-            this.remoteStart.highTemp = value === 'ON'
-            this.publishProperty(prop, this.remoteStart.highTemp ? 'ON' : 'OFF')
-        } else if (prop === 'remote_extra_dry') {
-            this.remoteStart.extraDry = value === 'ON'
-            this.publishProperty(prop, this.remoteStart.extraDry ? 'ON' : 'OFF')
         } else if (prop === 'remote_extra_rinse') {
             this.remoteStart.extraRinse = this.clampedInteger(value, 0, 3)
             this.publishProperty(prop, this.remoteStart.extraRinse)
@@ -621,7 +595,6 @@ export default class Device extends AABBDevice {
     }
 
     private sendRemoteStart() {
-        const options = (this.remoteStart.highTemp ? 0x08 : 0) | (this.remoteStart.extraDry ? 0x04 : 0)
         const rinse =
             (this.remoteStart.extraRinse * 0x08) |
             (this.remoteStart.course === REMOTE_COURSES.DOWNLOAD_CYCLE ? 0x40 : 0)
@@ -634,7 +607,7 @@ export default class Device extends AABBDevice {
                 this.remoteStart.course,
                 this.remoteStart.delay,
                 0x00,
-                options,
+                0x00,
                 rinse,
                 0x00,
             ]),

@@ -37,6 +37,8 @@ describe('H01', () => {
         assert.equal(components.power.platform, 'switch')
         assert.equal(components.pause.platform, 'button')
         assert.equal(components.remote_course.platform, 'select')
+        assert.equal(components.remote_high_temp, undefined)
+        assert.equal(components.remote_extra_dry, undefined)
         assert.equal(components.steam.platform, 'binary_sensor')
         assert.equal(components.intensive_wash.platform, 'sensor')
         assert.equal(components.safe_rinse.platform, 'binary_sensor')
@@ -60,10 +62,14 @@ describe('H01', () => {
 
         assert.equal(configs.length, 2)
         assert.deepEqual(configs[0].remote_steam, { platform: 'switch' })
+        assert.deepEqual(configs[0].remote_high_temp, { platform: 'switch' })
+        assert.deepEqual(configs[0].remote_extra_dry, { platform: 'switch' })
         assert.deepEqual(configs[0].brightness, { platform: 'select' })
         assert.deepEqual(configs[0].auto_dry, { platform: 'switch' })
         assert.equal(configs[1].steam.platform, 'binary_sensor')
         assert.equal(configs[1].remote_steam, undefined)
+        assert.equal(configs[1].remote_high_temp, undefined)
+        assert.equal(configs[1].remote_extra_dry, undefined)
         assert.equal(configs[1].brightness, undefined)
         assert.equal(configs[1].auto_dry, undefined)
     })
@@ -74,8 +80,6 @@ describe('H01', () => {
 
         assert.equal(ha.devices[DEVICE_ID].properties.remote_course, 'AUTO')
         assert.equal(ha.devices[DEVICE_ID].properties.remote_delay, 0)
-        assert.equal(ha.devices[DEVICE_ID].properties.remote_high_temp, 'OFF')
-        assert.equal(ha.devices[DEVICE_ID].properties.remote_extra_dry, 'OFF')
         assert.equal(ha.devices[DEVICE_ID].properties.remote_extra_rinse, 0)
         assert.equal(hex(thinq.outbox[0]), 'AA0EF0ED1211010000010400EBBB')
     })
@@ -222,16 +226,14 @@ describe('H01', () => {
         assert.equal(thinq.outbox.length, 0)
     })
 
-    test('builds remote start from all virtual options', () => {
+    test('builds remote start without unsupported high-temp and extra-dry options', () => {
         const { thinq, dev } = makeDevice()
         dev.setProperty('remote_course', 'DOWNLOAD_CYCLE')
         dev.setProperty('remote_delay', '12')
-        dev.setProperty('remote_high_temp', 'ON')
-        dev.setProperty('remote_extra_dry', 'ON')
         dev.setProperty('remote_extra_rinse', '3')
         dev.setProperty('remote_start', '')
 
-        assert.equal(hex(thinq.outbox.at(-1)!), 'AA0DF026100B0C000C58000DBB')
+        assert.equal(hex(thinq.outbox.at(-1)!), 'AA0DF026100B0C0000580019BB')
     })
 
     test('uses the final 0x0018 status and skips an interleaved 0x050d statistics block', () => {

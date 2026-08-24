@@ -32,7 +32,8 @@ describe('H01', () => {
         assert.equal(components.state.platform, 'sensor')
         assert.equal(components.door.platform, 'binary_sensor')
         assert.equal(components.rinse_level.platform, 'number')
-        assert.equal(components.auto_dry.platform, 'switch')
+        assert.equal(components.auto_dry, undefined)
+        assert.equal(components.brightness, undefined)
         assert.equal(components.power.platform, 'switch')
         assert.equal(components.pause.platform, 'button')
         assert.equal(components.remote_course.platform, 'select')
@@ -57,8 +58,12 @@ describe('H01', () => {
         assert.equal(configs.length, 2)
         assert.deepEqual(configs[0].steam, { platform: 'binary_sensor' })
         assert.deepEqual(configs[0].remote_steam, { platform: 'switch' })
+        assert.deepEqual(configs[0].brightness, { platform: 'select' })
+        assert.deepEqual(configs[0].auto_dry, { platform: 'switch' })
         assert.equal(configs[1].steam, undefined)
         assert.equal(configs[1].remote_steam, undefined)
+        assert.equal(configs[1].brightness, undefined)
+        assert.equal(configs[1].auto_dry, undefined)
     })
 
     test('start publishes remote defaults and sends the standard full-state query', () => {
@@ -134,7 +139,6 @@ describe('H01', () => {
         assert.equal(properties.delay_start, 2)
         assert.equal(properties.door, 'OPEN')
         assert.equal(properties.clean_reminder, 'ON')
-        assert.equal(properties.auto_dry, 'ON')
         assert.equal(properties.extra_dry, 'ON')
         assert.equal(properties.high_temp, 'ON')
         assert.equal(properties.rinse_level, 3)
@@ -142,7 +146,6 @@ describe('H01', () => {
         assert.equal(properties.remote_start_active, 'ON')
         assert.equal(properties.remote_mode, 'ALWAYS')
         assert.equal(properties.end_alarm, 'ON')
-        assert.equal(properties.brightness, 'HIGH')
         assert.equal(properties.buzzer, 'HIGH')
         assert.equal(properties.downloaded_course, 'GLASS_AND_WINE')
         assert.equal(properties.extra_rinse, 3)
@@ -192,8 +195,23 @@ describe('H01', () => {
         current[19] = 0x40
         thinq.emit('data', frame(Buffer.concat([Buffer.from([0x32, 0xeb]), statusBlock(current)])))
 
-        dev.setProperty('auto_dry', 'OFF')
-        assert.equal(hex(thinq.outbox.at(-1)!), 'AA0FF02603044C804000000000B7BB')
+        dev.setProperty('clean_reminder', 'OFF')
+        assert.equal(hex(thinq.outbox.at(-1)!), 'AA0EF0260304F482000000001EBB')
+    })
+
+    test('preserves H01 reserved settings bits from the real app capture', () => {
+        const { thinq, dev } = makeDevice()
+        const current = Buffer.alloc(24)
+        current[11] = 0x52
+        current[13] = 0x03
+        current[14] = 0x01
+        current[15] = 0x4b
+        current[16] = 0x97
+        thinq.emit('data', frame(Buffer.concat([Buffer.from([0x32, 0xeb]), statusBlock(current)])))
+
+        dev.setProperty('rinse_level', '3')
+
+        assert.equal(hex(thinq.outbox.at(-1)!), 'AA0EF0260301FA82000000001BBB')
     })
 
     test('does not send a settings overwrite before receiving status', () => {

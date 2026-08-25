@@ -41,7 +41,9 @@ test('device monitor detaches device and manager listeners after a real WebSocke
     const ws = new WebSocket(`ws://127.0.0.1:${port}/device?id=device-1`)
     const firstMessage = once(ws, 'message')
     await once(ws, 'open')
-    await firstMessage
+    const status = JSON.parse((await firstMessage)[0].toString())
+
+    assert.equal(status.name, 'model-name')
 
     assert.equal(device.listenerCount('packetData'), 1)
     assert.equal(device.listenerCount('sendData'), 1)
@@ -126,7 +128,14 @@ test('device monitor records, annotates, lists, and downloads a capture', async 
         device.emit('packetData', inbound, true)
         device.emit('packetData', inbound, false)
         await firstRx
-        device.send_packet(Buffer.from('AA07F0261688BB', 'hex'))
+        const outbound = Buffer.from('AA07F0261688BB', 'hex')
+        const normalTx = nextJson(ws, (message) => message.tx === outbound.toString('hex'))
+        device.send_packet(outbound)
+        assert.equal((await normalTx).mapped, true)
+
+        const injectedTx = nextJson(ws, (message) => message.tx === outbound.toString('hex') && message.injected)
+        ws.send(JSON.stringify({ sendToDevice: outbound.toString('hex') }))
+        assert.equal((await injectedTx).mapped, false)
         ws.send(JSON.stringify({ captureNote: 'Power button pressed' }))
 
         const stopped = nextJson(ws, (message) => message.capture?.active === false)
@@ -146,9 +155,9 @@ test('device monitor records, annotates, lists, and downloads a capture', async 
             events.filter((event) => event.k === 'wire' && event.dir === 'fromDevice').map((event) => event.mapped),
             [true, false],
         )
-        assert.equal(
-            events.some((event) => event.k === 'wire' && event.dir === 'toDevice'),
-            true,
+        assert.deepEqual(
+            events.filter((event) => event.k === 'wire' && event.dir === 'toDevice').map((event) => event.mapped),
+            [true, false],
         )
         assert.equal(
             events.some((event) => event.k === 'note' && event.text === 'Power button pressed'),

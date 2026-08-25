@@ -275,6 +275,8 @@ export function app(
             let injectFlag = false
             let device: AnyDevice | undefined
             let capture: { filename: string; writer: CaptureWriter; label?: string } | undefined
+            const deviceName = () => bridge?.getDeviceAlias(id) || device?.meta.modelName || device?.meta.modelId || id
+            const sendDeviceName = () => safeSend(ws, JSON.stringify({ name: deviceName() }))
             const onDeviceRx = (arg: Buffer, mapped: boolean) => {
                 capture?.writer.recordWire('fromDevice', arg.toString('hex'), injectFlag, mapped)
                 safeSend(ws, JSON.stringify({ rx: arg.toString('hex'), injected: injectFlag, mapped }))
@@ -318,7 +320,7 @@ export function app(
 
                     device = dev
                     if (device) {
-                        safeSend(ws, JSON.stringify({ status: 'online', meta: device.meta }))
+                        safeSend(ws, JSON.stringify({ status: 'online', meta: device.meta, name: deviceName() }))
                         capture?.writer.marker('online', device.meta)
                         device.on('packetData', onDeviceRx)
                         device.on('sendData', onDeviceTx)
@@ -331,6 +333,7 @@ export function app(
 
             manager.on('newDevice', checkDevicePresence)
             manager.on('dropDevice', checkDevicePresence)
+            bridge?.on('aliasesChanged', sendDeviceName)
 
             checkDevicePresence()
 
@@ -402,6 +405,7 @@ export function app(
                 device = undefined
                 manager.removeListener('newDevice', checkDevicePresence)
                 manager.removeListener('dropDevice', checkDevicePresence)
+                bridge?.removeListener('aliasesChanged', sendDeviceName)
             }
             deviceMonitors.set(ws, cleanup)
             ws.once('close', cleanup)

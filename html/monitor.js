@@ -107,6 +107,10 @@ function connect() {
                 get('device_model').innerText = json.meta.modelId
             }
 
+            if ('name' in json) {
+                get('device_name').innerText = json.name
+            }
+
             if (json.capture) {
                 if (json.capture.error) {
                     setCaptureState(false)
@@ -142,11 +146,12 @@ function pushMessage(direction, payload, injected, mapped) {
     timestamp.innerText = new Date().toLocaleTimeString()
     timestamp.classList.add('timestamp')
     messageSequence += 1
-    details.innerText = `#${messageSequence} ${direction.toUpperCase()}${hexPayload ? ` ${payload.length / 2} B` : ''}`
-    details.classList.add('message_details')
     const div = document.createElement('div')
     div.classList.add(direction, 'message')
     const mappingClass = mapped === true ? 'mapped' : 'unmapped'
+    const mappingLabel = rethinkI18n.t(`mapping.${mappingClass}`, mappingClass === 'mapped' ? 'Mapped' : 'Unmapped')
+    details.innerText = `#${messageSequence} ${direction.toUpperCase()}${hexPayload ? ` ${payload.length / 2} B` : ''} · ${mappingLabel}`
+    details.classList.add('message_details')
     div.classList.add(mappingClass)
     if (messageFilter !== 'all' && messageFilter !== mappingClass) div.classList.add('filtered_out')
     if (injected) div.classList.add('injected')

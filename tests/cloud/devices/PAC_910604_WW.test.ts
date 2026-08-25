@@ -44,6 +44,14 @@ describe('PAC_910604_WW', () => {
             'jet',
             'space_airflow',
             'outlet',
+            'standby_screen',
+            'standby_indoor_air',
+            'standby_outdoor_air',
+            'standby_clock',
+            'standby_date',
+            'standby_time_format',
+            'standby_auto_switch',
+            'standby_switch_interval',
         ])
             assert.ok(components[id])
         for (const id of ['capacity', 'eev', 'fanrpm', 'oduairtemp', 'oduhextemp', 'pipeintemp', 'pipeouttemp'])
@@ -82,6 +90,15 @@ describe('PAC_910604_WW', () => {
         assert.equal((components.quiet as { name: string }).name, '저소음 냉방')
         assert.equal((components.outlet as { name: string }).name, '토출구 열기')
         assert.equal(components.airflow_direction, undefined)
+        assert.deepEqual((components.standby_time_format as { options: string[] }).options, ['12시간제', '24시간제'])
+        assert.deepEqual((components.standby_switch_interval as { options: string[] }).options, [
+            '10초',
+            '30초',
+            '1분',
+            '3분',
+            '5분',
+            '10분',
+        ])
         dev.drop()
     })
     test('changes the fan mode list for dry while retaining it when powered off', () => {
@@ -175,6 +192,55 @@ describe('PAC_910604_WW', () => {
         const sentCount = thinq.outbox.length
         thinq.emit('data', buf('000004000000a7020445117dc17e457f903c7e8483c1d2058f41c48ff538'))
         assert.equal(thinq.outbox.length, sentCount)
+        dev.drop()
+    })
+    test('maps captured standby-screen settings and dependent availability', () => {
+        const { ha, thinq, dev } = makeDevice()
+
+        dev.processKeyValue(0x1b5, 0)
+        assert.equal(ha.devices[DEVICE_ID].properties.standby_children_availability, 'offline')
+
+        dev.processKeyValue(0x1b5, 1)
+        dev.processKeyValue(0x1a6, 1)
+        dev.processKeyValue(0x1a7, 0)
+        dev.processKeyValue(0x1b0, 0)
+        assert.equal(ha.devices[DEVICE_ID].properties.standby_children_availability, 'online')
+        assert.equal(ha.devices[DEVICE_ID].properties.standby_auto_availability, 'offline')
+        assert.equal(ha.devices[DEVICE_ID].properties.standby_clock_availability, 'offline')
+
+        dev.processKeyValue(0x1b0, 1)
+        dev.processKeyValue(0x1b9, 1)
+        assert.equal(ha.devices[DEVICE_ID].properties.standby_auto_availability, 'online')
+        assert.equal(ha.devices[DEVICE_ID].properties.standby_clock_availability, 'online')
+        assert.equal(ha.devices[DEVICE_ID].properties.standby_interval_availability, 'online')
+
+        dev.processKeyValue(0x1a2, 0)
+        dev.processKeyValue(0x1a4, 1)
+        dev.processKeyValue(0x1b3, 300)
+        assert.equal(ha.getProperty(DEVICE_ID, 'standby_time_format', 'state'), '12시간제')
+        assert.equal(ha.getProperty(DEVICE_ID, 'standby_date', 'state'), 'ON')
+        assert.equal(ha.getProperty(DEVICE_ID, 'standby_switch_interval', 'state'), '5분')
+
+        ha.setProperty(DEVICE_ID, 'standby_time_format', 'command', '24시간제')
+        const written = TLV.parse(thinq.outbox.at(-1)!.subarray(11, -2))
+        assert.deepEqual(
+            written.map(({ t, v }) => [t, v]),
+            [
+                [0x1a6, 1],
+                [0x1a2, 1],
+                [0x1b5, 1],
+                [0x1a4, 1],
+                [0x1b3, 300],
+                [0x1a7, 0],
+                [0x1b9, 1],
+                [0x1b0, 1],
+            ],
+        )
+
+        ha.setProperty(DEVICE_ID, 'standby_clock', 'command', 'OFF')
+        const oneSelectedCount = thinq.outbox.length
+        ha.setProperty(DEVICE_ID, 'standby_indoor_air', 'command', 'OFF')
+        assert.equal(thinq.outbox.length, oneSelectedCount, 'the last selected standby screen must remain enabled')
         dev.drop()
     })
 })

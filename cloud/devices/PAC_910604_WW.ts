@@ -11,7 +11,27 @@ const fields = {
     fanSpeed: 0x1fa,
     currentTemperature: 0x1fd,
     targetTemperature: 0x1fe,
+    standbyTimeFormat: 0x1a2,
+    standbyDate: 0x1a4,
+    standbyIndoorAir: 0x1a6,
+    standbyOutdoorAir: 0x1a7,
+    standbyClock: 0x1b0,
+    standbyInterval: 0x1b3,
+    standbyPower: 0x1b5,
+    standbyAutoSwitch: 0x1b9,
 } as const
+
+const standbyTypeFields = [fields.standbyIndoorAir, fields.standbyOutdoorAir, fields.standbyClock] as const
+const standbyFields = [
+    fields.standbyIndoorAir,
+    fields.standbyTimeFormat,
+    fields.standbyPower,
+    fields.standbyDate,
+    fields.standbyInterval,
+    fields.standbyOutdoorAir,
+    fields.standbyAutoSwitch,
+    fields.standbyClock,
+] as const
 
 /** LG Korean stand air conditioner using A7 TLV notifications and A8 fixed status frames. */
 export default class Device extends RACDevice {
@@ -235,6 +255,8 @@ export default class Device extends RACDevice {
         this.addConfigSwitchField(config, 0x236, 'jet', '파워 냉방', 'mdi:snowflake')
         this.addConfigSwitchFieldWithValues(config, 0x165, 'all_cleaning', '올클리닝', 'mdi:air-filter', 100, 0)
 
+        this.addStandbyScreenConfig(config)
+
         config.components.air_quality_sensor = {
             platform: 'select',
             unique_id: '$deviceid-air-quality-sensor',
@@ -437,6 +459,144 @@ export default class Device extends RACDevice {
         this.HA.publishProperty(this.id, 'space_airflow_availability', cooling ? 'online' : 'offline')
         this.HA.publishProperty(this.id, 'quiet_availability', cooling ? 'online' : 'offline')
         this.HA.publishProperty(this.id, 'outlet_availability', off ? 'online' : 'offline')
+    }
+
+    private addStandbyScreenConfig(config: DeviceDiscovery) {
+        const addStandbySwitch = (id: number, component: string, name: string, availabilityTopic?: string) => {
+            config.components[component] = {
+                platform: 'switch',
+                unique_id: `$deviceid-${component}`,
+                name,
+                icon: 'mdi:monitor',
+                entity_category: 'config',
+                ...(availabilityTopic
+                    ? { availability: this.modeAvailability(availabilityTopic), availability_mode: 'all' }
+                    : {}),
+            } as unknown as DeviceDiscovery['components'][string]
+            this.addField(config, {
+                id,
+                name: '',
+                comp: component,
+                read_xform: (raw) => (raw ? 'ON' : 'OFF'),
+                write_xform: (value) => (value === 'ON' ? 1 : 0),
+                read_callback: () => {
+                    this.updateStandbyAvailability()
+                    return true
+                },
+                write_callback: (value) => {
+                    if (id === fields.standbyPower) {
+                        this.raw_clip_state[id] = value
+                        this.send([1, 1, 2, 1, 1], [{ t: id, v: value }])
+                        this.updateStandbyAvailability()
+                        return false
+                    }
+                    return this.writeStandbySetting(id, value)
+                },
+            })
+        }
+
+        addStandbySwitch(fields.standbyPower, 'standby_screen', '대기 화면')
+        addStandbySwitch(fields.standbyIndoorAir, 'standby_indoor_air', '대기 화면 실내 공기', 'standby_children_availability')
+        addStandbySwitch(
+            fields.standbyOutdoorAir,
+            'standby_outdoor_air',
+            '대기 화면 실외 공기',
+            'standby_children_availability',
+        )
+        addStandbySwitch(fields.standbyClock, 'standby_clock', '대기 화면 현재 시간', 'standby_children_availability')
+        addStandbySwitch(fields.standbyDate, 'standby_date', '대기 화면 날짜 표시', 'standby_clock_availability')
+        addStandbySwitch(
+            fields.standbyAutoSwitch,
+            'standby_auto_switch',
+            '대기 화면 자동 전환',
+            'standby_auto_availability',
+        )
+
+        config.components.standby_time_format = {
+            platform: 'select',
+            unique_id: '$deviceid-standby_time_format',
+            name: '대기 화면 시간 형식',
+            icon: 'mdi:clock-outline',
+            options: ['12시간제', '24시간제'],
+            entity_category: 'config',
+            availability: this.modeAvailability('standby_clock_availability'),
+            availability_mode: 'all',
+        } as unknown as DeviceDiscovery['components'][string]
+        this.addField(config, {
+            id: fields.standbyTimeFormat,
+            name: '',
+            comp: 'standby_time_format',
+            read_xform: (raw) => (raw ? '24시간제' : '12시간제'),
+            write_xform: (value) => (value === '24시간제' ? 1 : 0),
+            read_callback: () => {
+                this.updateStandbyAvailability()
+                return true
+            },
+            write_callback: (value) => this.writeStandbySetting(fields.standbyTimeFormat, value),
+        })
+
+        const intervalOptions = ['10초', '30초', '1분', '3분', '5분', '10분']
+        const intervalValues = [10, 30, 60, 180, 300, 600]
+        config.components.standby_switch_interval = {
+            platform: 'select',
+            unique_id: '$deviceid-standby_switch_interval',
+            name: '대기 화면 전환 시간',
+            icon: 'mdi:timer-outline',
+            options: intervalOptions,
+            entity_category: 'config',
+            availability: this.modeAvailability('standby_interval_availability'),
+            availability_mode: 'all',
+        } as unknown as DeviceDiscovery['components'][string]
+        this.addField(config, {
+            id: fields.standbyInterval,
+            name: '',
+            comp: 'standby_switch_interval',
+            read_xform: (raw) => intervalOptions[intervalValues.indexOf(raw)],
+            write_xform: (value) => intervalValues[intervalOptions.indexOf(value)],
+            read_callback: () => {
+                this.updateStandbyAvailability()
+                return true
+            },
+            write_callback: (value) => this.writeStandbySetting(fields.standbyInterval, value),
+        })
+    }
+
+    private writeStandbySetting(id: number, value: number) {
+        if (standbyTypeFields.includes(id as (typeof standbyTypeFields)[number]) && value === 0) {
+            const otherSelected = standbyTypeFields.some((field) => field !== id && this.raw_clip_state[field] !== 0)
+            if (!otherSelected) return false
+        }
+
+        this.raw_clip_state[id] = value
+        const defaults: Record<number, number> = {
+            [fields.standbyIndoorAir]: 1,
+            [fields.standbyTimeFormat]: 1,
+            [fields.standbyPower]: 1,
+            [fields.standbyDate]: 1,
+            [fields.standbyInterval]: 10,
+            [fields.standbyOutdoorAir]: 0,
+            [fields.standbyAutoSwitch]: 0,
+            [fields.standbyClock]: 0,
+        }
+        this.send(
+            [1, 1, 2, 1, 1],
+            standbyFields.map((field) => ({ t: field, v: this.raw_clip_state[field] ?? defaults[field] })),
+        )
+        this.updateStandbyAvailability()
+        return false
+    }
+
+    private updateStandbyAvailability() {
+        const enabled = this.raw_clip_state[fields.standbyPower] !== 0
+        const selectedCount = standbyTypeFields.filter((field) => this.raw_clip_state[field] !== 0).length
+        const clockEnabled = enabled && this.raw_clip_state[fields.standbyClock] !== 0
+        const autoAvailable = enabled && selectedCount > 1
+        const intervalAvailable = autoAvailable && this.raw_clip_state[fields.standbyAutoSwitch] !== 0
+
+        this.HA.publishProperty(this.id, 'standby_children_availability', enabled ? 'online' : 'offline')
+        this.HA.publishProperty(this.id, 'standby_clock_availability', clockEnabled ? 'online' : 'offline')
+        this.HA.publishProperty(this.id, 'standby_auto_availability', autoAvailable ? 'online' : 'offline')
+        this.HA.publishProperty(this.id, 'standby_interval_availability', intervalAvailable ? 'online' : 'offline')
     }
 
     private updateFanModeOptions() {

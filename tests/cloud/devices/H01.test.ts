@@ -67,6 +67,9 @@ describe('H01', () => {
         new DUT(ha.asConnection(), new MockThinq2Device(DEVICE_ID, META), META)
 
         assert.equal(configs.length, 2)
+        assert.deepEqual(configs[0].state, { platform: 'sensor' })
+        assert.deepEqual(configs[0].course, { platform: 'sensor' })
+        assert.deepEqual(configs[0].downloaded_course, { platform: 'sensor' })
         assert.deepEqual(configs[0].remote_steam, { platform: 'switch' })
         assert.deepEqual(configs[0].remote_high_temp, { platform: 'switch' })
         assert.deepEqual(configs[0].remote_extra_dry, { platform: 'switch' })

@@ -394,6 +394,11 @@ export default class Device extends AABBDevice {
                 },
             }),
             {
+                // Recreate these sensors once so existing MQTT entities pick
+                // up their enum device class and option lists.
+                state: { platform: 'sensor' },
+                course: { platform: 'sensor' },
+                downloaded_course: { platform: 'sensor' },
                 remote_steam: { platform: 'switch' },
                 remote_high_temp: { platform: 'switch' },
                 remote_extra_dry: { platform: 'switch' },

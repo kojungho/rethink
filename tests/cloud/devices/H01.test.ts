@@ -59,7 +59,7 @@ describe('H01', () => {
         assert.equal(components.brightness, undefined)
         assert.equal(components.power.platform, 'switch')
         assert.equal(components.operation.platform, 'select')
-        assert.deepEqual(components.operation.options, ['시작', '정지', '취소'])
+        assert.deepEqual(components.operation.options, ['시작', '정지', '취소', '전원 끄기'])
         assert.match(components.operation.command_template as string, /시작/)
         assert.equal(components.pause.platform, 'button')
         assert.equal(components.remote_course.platform, 'select')

@@ -105,7 +105,7 @@ const DISPLAY_LABELS = {
     RINSING: '헹굼 중',
 }
 
-const OPERATION_LABELS = { start: '시작', stop: '정지', cancel: '취소' }
+const OPERATION_LABELS = { start: '시작', stop: '정지', cancel: '취소', power_off: '전원 끄기' }
 
 const DIAGNOSTIC_STAGES: Record<number, string> = {
     0x02: 'WASHING',

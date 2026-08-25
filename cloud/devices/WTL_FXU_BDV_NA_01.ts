@@ -395,6 +395,9 @@ const DRYER_STATES: Record<number, string> = {
     0x1f: 'AI_LOAD_CHECK',
 }
 
+const WASHER_POWER_OFF_STATES = new Set(['POWEROFF', 'ERROR_AUTO_OFF', 'END_REMOTE_MAINTAIN_ON', 'END_WAITING'])
+const DRYER_POWER_OFF_STATES = new Set(['POWEROFF', 'END_REMOTE_MAINTAIN_ON', 'END_WAITING'])
+
 const DRYER_DRY_LEVELS: Record<number, string> = {
     0x00: 'NOT_SELECTED',
     0x01: 'DAMP',
@@ -503,7 +506,7 @@ export default class Device extends AABBDevice {
                         platform: 'sensor',
                         unique_id: '$deviceid-washer-state',
                         state_topic: '$this/washer/state',
-                        name: '세탁기 상태',
+                        name: '세탁기 현재 상태',
                         icon: 'mdi:washing-machine',
                         device_class: 'enum',
                         options: Object.values(WASHER_STATES),
@@ -660,7 +663,7 @@ export default class Device extends AABBDevice {
                         platform: 'sensor',
                         unique_id: '$deviceid-dryer-state',
                         state_topic: '$this/dryer/state',
-                        name: '건조기 상태',
+                        name: '건조기 현재 상태',
                         icon: 'mdi:tumble-dryer',
                         device_class: 'enum',
                         options: Object.values(DRYER_STATES),
@@ -1078,8 +1081,10 @@ export default class Device extends AABBDevice {
         //
         this.publishProperty('shared/init_lcd', Device.formatEnum(INIT_LCD_THEMES, block[48]))
 
-        this.publishProperty('washer/power', washerState !== 0 ? 'ON' : 'OFF')
-        this.publishProperty('washer/state', Device.formatEnum(WASHER_STATES, washerState))
+        const washerStateName = Device.formatEnum(WASHER_STATES, washerState)
+        const washerPowerOff = WASHER_POWER_OFF_STATES.has(washerStateName)
+        this.publishProperty('washer/power', washerPowerOff ? 'OFF' : 'ON')
+        this.publishProperty('washer/state', washerPowerOff ? 'POWEROFF' : washerStateName)
         this.publishProperty('washer/error', Device.formatEnum(WASHER_ERRORS, block[21]))
         this.publishProperty('washer/buzzer', Device.formatEnum(DEVICE_BUZZER, block[31]))
         this.publishProperty('washer/add_garment', block[39] & 0x80 ? 'ON' : 'OFF')
@@ -1104,8 +1109,10 @@ export default class Device extends AABBDevice {
         )
         this.publishProperty('dryer/initial_time', dryer.readUInt16BE(11))
 
-        this.publishProperty('dryer/power', dryerState !== 0 ? 'ON' : 'OFF')
-        this.publishProperty('dryer/state', Device.formatEnum(DRYER_STATES, dryerState))
+        const dryerStateName = Device.formatEnum(DRYER_STATES, dryerState)
+        const dryerPowerOff = DRYER_POWER_OFF_STATES.has(dryerStateName)
+        this.publishProperty('dryer/power', dryerPowerOff ? 'OFF' : 'ON')
+        this.publishProperty('dryer/state', dryerPowerOff ? 'POWEROFF' : dryerStateName)
         this.publishProperty('dryer/error', Device.formatEnum(DRYER_ERRORS, dryer[15]))
         this.publishProperty('dryer/buzzer', Device.formatEnum(DEVICE_BUZZER, dryer[19]))
         this.publishProperty('dryer/duct_clogging', Device.formatEnum(DRYER_DUCT_CLOGGING, dryer[22]))

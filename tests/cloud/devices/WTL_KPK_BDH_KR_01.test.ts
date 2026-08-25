@@ -94,6 +94,21 @@ describe('WTL_KPK_BDH_KR_01', () => {
         assert.equal(ha.devices[DEVICE_ID].properties['dryer/power'], 'ON')
     })
 
+    test('normalizes retained end-maintain states to panel power off', () => {
+        const { ha, thinq } = makeDevice()
+        const packet = Buffer.from(KOREAN_FULL_STATE, 'hex')
+        const blockStart = 13
+        packet[blockStart + 23] = 0x2a
+        packet[blockStart + 60 + 13] = 0x16
+
+        thinq.emit('data', packet)
+
+        assert.equal(ha.devices[DEVICE_ID].properties['washer/power'], 'OFF')
+        assert.equal(ha.devices[DEVICE_ID].properties['washer/state'], 'POWEROFF')
+        assert.equal(ha.devices[DEVICE_ID].properties['dryer/power'], 'OFF')
+        assert.equal(ha.devices[DEVICE_ID].properties['dryer/state'], 'POWEROFF')
+    })
+
     test('uses the current half of a 0xde previous/current state pair', () => {
         const { ha, thinq } = makeDevice()
 

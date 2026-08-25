@@ -43,10 +43,13 @@ function assertMinutesFromNow(value: unknown, minutes: number) {
 describe('WTL_KPK_BDH_KR_01', () => {
     test('publishes the ThinQ cycle count as a cumulative Korean washer sensor', () => {
         const { ha } = makeDevice()
-        const components = ha.devices[DEVICE_ID].config!.components as Record<string, Record<string, unknown>>
+        const components = ha.devices[`${DEVICE_ID}-washer`].config!.components as Record<
+            string,
+            Record<string, unknown>
+        >
 
         assert.equal(components.washer_cycle_count.platform, 'sensor')
-        assert.equal(components.washer_cycle_count.name, '세탁기 누적 세탁 횟수')
+        assert.equal(components.washer_cycle_count.name, '누적 세탁 횟수')
         assert.equal(components.washer_cycle_count.state_class, 'total_increasing')
     })
 
@@ -96,19 +99,19 @@ describe('WTL_KPK_BDH_KR_01', () => {
         assert.equal(ha.devices[DEVICE_ID].properties['dryer/power'], 'ON')
     })
 
-    test('normalizes retained end-maintain states to panel power off', () => {
+    test('keeps end status while reporting the panel power off', () => {
         const { ha, thinq } = makeDevice()
         const packet = Buffer.from(KOREAN_FULL_STATE, 'hex')
-        const blockStart = 13
+        const blockStart = 15 // 2-byte AA/FF frame prefix + 13-byte state header
         packet[blockStart + 23] = 0x2a
         packet[blockStart + 60 + 13] = 0x16
 
         thinq.emit('data', packet)
 
         assert.equal(ha.devices[DEVICE_ID].properties['washer/power'], 'OFF')
-        assert.equal(ha.devices[DEVICE_ID].properties['washer/state'], 'POWEROFF')
+        assert.equal(ha.devices[DEVICE_ID].properties['washer/state'], 'END')
         assert.equal(ha.devices[DEVICE_ID].properties['dryer/power'], 'OFF')
-        assert.equal(ha.devices[DEVICE_ID].properties['dryer/state'], 'POWEROFF')
+        assert.equal(ha.devices[DEVICE_ID].properties['dryer/state'], 'END')
     })
 
     test('uses the current half of a 0xde previous/current state pair', () => {

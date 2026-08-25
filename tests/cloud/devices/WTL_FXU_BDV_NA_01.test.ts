@@ -86,7 +86,16 @@ function assertMinutesFromNow(value: unknown, minutes: number) {
 describe(MODEL_ID, () => {
     test('config exposes expected HA components', () => {
         const { ha } = makeDevice()
-        const components = ha.devices[DEVICE_ID].config!.components as Record<string, unknown>
+        const washerConfig = ha.devices[`${DEVICE_ID}-washer`].config!
+        const dryerConfig = ha.devices[`${DEVICE_ID}-dryer`].config!
+        const components = { ...washerConfig.components, ...dryerConfig.components } as Record<string, unknown>
+        assert.equal(washerConfig.device.identifiers, '$deviceid-washer')
+        assert.equal(washerConfig.device.name, '워시타워 세탁기')
+        assert.equal(dryerConfig.device.identifiers, '$deviceid-dryer')
+        assert.equal(dryerConfig.device.name, '워시타워 건조기')
+        assert.deepEqual(ha.clearedConfigs, [DEVICE_ID])
+        assert.ok(Object.keys(washerConfig.components).every((id) => id.startsWith('washer_') || id === 'init_lcd'))
+        assert.ok(Object.keys(dryerConfig.components).every((id) => id.startsWith('dryer_')))
         for (const c of [
             'washer_state',
             'washer_power',
@@ -119,12 +128,12 @@ describe(MODEL_ID, () => {
         assert.equal(washerPower.platform, 'switch')
         assert.equal(dryerPower.platform, 'switch')
         assert.equal(washerState.device_class, 'enum')
-        assert.equal(washerState.name, '세탁기 현재 상태')
+        assert.equal(washerState.name, '현재 상태')
         assert.ok((washerState.options as string[]).includes('POWEROFF'))
         assert.ok((washerState.options as string[]).includes('TUB_CLEANING'))
         assert.ok((washerState.options as string[]).includes('END_WAITING'))
         assert.equal(dryerState.device_class, 'enum')
-        assert.equal(dryerState.name, '건조기 현재 상태')
+        assert.equal(dryerState.name, '현재 상태')
         assert.ok((dryerState.options as string[]).includes('POWEROFF'))
         assert.ok((dryerState.options as string[]).includes('DRUM_CARE'))
         assert.ok((dryerState.options as string[]).includes('AI_LOAD_CHECK'))
@@ -137,29 +146,41 @@ describe(MODEL_ID, () => {
         assert.equal((components.washer_laundry_care as Record<string, unknown>).entity_category, 'config')
     })
 
+    test('uses the official ThinQ alias for both split MQTT devices', () => {
+        const ha = new MockHAConnection()
+        const meta = { ...META, alias: '우리집 워시타워' }
+
+        new DUT(ha.asConnection(), new MockThinq2Device(DEVICE_ID, meta), meta)
+
+        assert.equal(ha.devices[`${DEVICE_ID}-washer`].config!.device.name, '우리집 워시타워 세탁기')
+        assert.equal(ha.devices[`${DEVICE_ID}-dryer`].config!.device.name, '우리집 워시타워 건조기')
+    })
+
     test('recreates settings components so Home Assistant applies their config category', () => {
         const ha = new MockHAConnection()
-        const configs: Array<Record<string, Record<string, unknown>>> = []
+        const configs: Array<{ discoveryId: string; components: Record<string, Record<string, unknown>> }> = []
         const publishConfig = ha.publishConfig.bind(ha)
-        ha.publishConfig = (id, config) => {
-            configs.push(config.components as Record<string, Record<string, unknown>>)
-            publishConfig(id, config)
+        ha.publishConfig = (id, config, discoveryId = id) => {
+            configs.push({ discoveryId, components: config.components as Record<string, Record<string, unknown>> })
+            publishConfig(id, config, discoveryId)
         }
 
         new DUT(ha.asConnection(), new MockThinq2Device(DEVICE_ID, META), META)
 
-        assert.equal(configs.length, 2)
-        assert.deepEqual(configs[0].washer_buzzer, { platform: 'select' })
-        assert.deepEqual(configs[0].dryer_buzzer, { platform: 'select' })
-        assert.deepEqual(configs[0].washer_remaining_time, { platform: 'sensor' })
-        assert.deepEqual(configs[0].dryer_remaining_time, { platform: 'sensor' })
-        assert.deepEqual(configs[0].washer_initial_time, { platform: 'sensor' })
-        assert.deepEqual(configs[0].dryer_initial_time, { platform: 'sensor' })
-        assert.deepEqual(configs[0].washer_remote_maintain, { platform: 'switch' })
-        assert.deepEqual(configs[0].dryer_remote_maintain, { platform: 'switch' })
-        assert.deepEqual(configs[0].init_lcd, { platform: 'select' })
-        assert.equal(configs[1].washer_buzzer.entity_category, 'config')
-        assert.equal(configs[1].dryer_remote_maintain.entity_category, 'config')
+        assert.equal(configs.length, 4)
+        assert.equal(configs[0].discoveryId, `${DEVICE_ID}-washer`)
+        assert.deepEqual(configs[0].components.washer_buzzer, { platform: 'select' })
+        assert.deepEqual(configs[0].components.washer_remaining_time, { platform: 'sensor' })
+        assert.deepEqual(configs[0].components.washer_initial_time, { platform: 'sensor' })
+        assert.deepEqual(configs[0].components.washer_remote_maintain, { platform: 'switch' })
+        assert.deepEqual(configs[0].components.init_lcd, { platform: 'select' })
+        assert.equal(configs[1].components.washer_buzzer.entity_category, 'config')
+        assert.equal(configs[2].discoveryId, `${DEVICE_ID}-dryer`)
+        assert.deepEqual(configs[2].components.dryer_buzzer, { platform: 'select' })
+        assert.deepEqual(configs[2].components.dryer_remaining_time, { platform: 'sensor' })
+        assert.deepEqual(configs[2].components.dryer_initial_time, { platform: 'sensor' })
+        assert.deepEqual(configs[2].components.dryer_remote_maintain, { platform: 'switch' })
+        assert.equal(configs[3].components.dryer_remote_maintain.entity_category, 'config')
     })
 
     test('0xd0 status packet decodes washer state', () => {

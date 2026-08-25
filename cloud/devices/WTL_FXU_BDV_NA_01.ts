@@ -1,6 +1,6 @@
 import HADevice from './base'
 import { Device as Thinq2Device } from '../thinq2/device'
-import { type Connection } from '../homeassistant'
+import { type Connection, type DeviceDiscovery } from '../homeassistant'
 import { type Metadata } from '../thinq'
 import { allowExtendedType } from '@/util/casting'
 import AABBDevice from './aabb_device'
@@ -397,6 +397,12 @@ const DRYER_STATES: Record<number, string> = {
 
 const WASHER_POWER_OFF_STATES = new Set(['POWEROFF', 'ERROR_AUTO_OFF', 'END_REMOTE_MAINTAIN_ON', 'END_WAITING'])
 const DRYER_POWER_OFF_STATES = new Set(['POWEROFF', 'END_REMOTE_MAINTAIN_ON', 'END_WAITING'])
+
+function displayState(state: string) {
+    if (state === 'END_REMOTE_MAINTAIN_ON' || state === 'END_WAITING') return 'END'
+    if (state === 'ERROR_AUTO_OFF') return 'ERROR'
+    return state
+}
 
 const DRYER_DRY_LEVELS: Record<number, string> = {
     0x00: 'NOT_SELECTED',
@@ -902,6 +908,65 @@ export default class Device extends AABBDevice {
         )
     }
 
+    override publishConfig() {
+        if (!this.config) return
+
+        this.HA.publishProperty(this.id, 'availability', 'online')
+        // Retire the former single-device discovery before publishing the two
+        // unit-specific configs. Unique IDs and state/command topics stay the
+        // same, so existing entity IDs and automations are preserved.
+        this.HA.clearConfig(this.id)
+
+        const baseName = this.config.device.name || '워시타워'
+        this.publishUnitConfig('washer', `${baseName} 세탁기`, '세탁기 ')
+        this.publishUnitConfig('dryer', `${baseName} 건조기`, '건조기 ')
+    }
+
+    private publishUnitConfig(unit: 'washer' | 'dryer', deviceName: string, namePrefix: string) {
+        if (!this.config) return
+
+        const includeComponent = (id: string) => id.startsWith(`${unit}_`) || (unit === 'washer' && id === 'init_lcd')
+        const components = Object.fromEntries(
+            Object.entries(this.config.components)
+                .filter(([id]) => includeComponent(id))
+                .map(([id, component]) => [
+                    id,
+                    {
+                        ...component,
+                        name:
+                            typeof component.name === 'string' && component.name.startsWith(namePrefix)
+                                ? component.name.slice(namePrefix.length)
+                                : component.name,
+                    },
+                ]),
+        )
+        const config: DeviceDiscovery = {
+            ...this.config,
+            device: {
+                ...this.config.device,
+                identifiers: `$deviceid-${unit}`,
+                name: deviceName,
+            },
+            components,
+        }
+        const removedComponents = Object.fromEntries(
+            Object.entries(this.removedComponents).filter(([id]) => includeComponent(id)),
+        )
+        const discoveryId = `${this.id}-${unit}`
+
+        if (Object.keys(removedComponents).length) {
+            this.HA.publishConfig(
+                this.id,
+                {
+                    ...config,
+                    components: { ...config.components, ...removedComponents },
+                } as DeviceDiscovery,
+                discoveryId,
+            )
+        }
+        this.HA.publishConfig(this.id, config, discoveryId)
+    }
+
     start() {
         //
         // Door state is delta-only (0x42/0x4e events), so default to CLOSE on each connect.
@@ -1086,7 +1151,7 @@ export default class Device extends AABBDevice {
         this.publishProperty('shared/init_lcd', Device.formatEnum(INIT_LCD_THEMES, block[48]))
 
         this.publishProperty('washer/power', washerPowerOff ? 'OFF' : 'ON')
-        this.publishProperty('washer/state', washerPowerOff ? 'POWEROFF' : washerStateName)
+        this.publishProperty('washer/state', displayState(washerStateName))
         this.publishProperty('washer/error', Device.formatEnum(WASHER_ERRORS, block[21]))
         this.publishProperty('washer/buzzer', Device.formatEnum(DEVICE_BUZZER, block[31]))
         this.publishProperty('washer/add_garment', block[39] & 0x80 ? 'ON' : 'OFF')
@@ -1114,7 +1179,7 @@ export default class Device extends AABBDevice {
         this.publishProperty('dryer/initial_time', dryerPowerOff ? '' : dryer.readUInt16BE(11))
 
         this.publishProperty('dryer/power', dryerPowerOff ? 'OFF' : 'ON')
-        this.publishProperty('dryer/state', dryerPowerOff ? 'POWEROFF' : dryerStateName)
+        this.publishProperty('dryer/state', displayState(dryerStateName))
         this.publishProperty('dryer/error', Device.formatEnum(DRYER_ERRORS, dryer[15]))
         this.publishProperty('dryer/buzzer', Device.formatEnum(DEVICE_BUZZER, dryer[19]))
         this.publishProperty('dryer/duct_clogging', Device.formatEnum(DRYER_DUCT_CLOGGING, dryer[22]))

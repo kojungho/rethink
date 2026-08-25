@@ -71,6 +71,7 @@ const t2deviceTypes: Record<string, T2Factory> = {
 
 class Bridge {
     haDevices = new Map<string, HADevice>()
+    private aliasResolver?: (id: string) => string | undefined
     constructor(readonly HA: Connection) {
         HA.on('discovery', () => {
             this.haDevices.forEach((ha) => ha.publishConfig())
@@ -81,8 +82,22 @@ class Bridge {
         })
     }
 
+    setAliasResolver(resolver: (id: string) => string | undefined) {
+        this.aliasResolver = resolver
+        this.refreshDeviceNames()
+    }
+
+    refreshDeviceNames() {
+        if (!this.aliasResolver) return
+        for (const [id, device] of this.haDevices) {
+            const alias = this.aliasResolver(id)
+            if (alias) device.setDeviceName(alias)
+        }
+    }
+
     newDevice(thinqdev: AnyDevice) {
-        const meta = thinqdev.meta
+        const alias = this.aliasResolver?.(thinqdev.id)
+        const meta = alias ? { ...thinqdev.meta, alias } : thinqdev.meta
         const oldDevice = this.haDevices.get(thinqdev.id)
         if (oldDevice) oldDevice.drop()
 

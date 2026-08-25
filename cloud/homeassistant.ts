@@ -127,8 +127,8 @@ export class Connection extends TypedEmitter<ConnectionEvents> {
         }
     }
 
-    publishConfig(id: string, config: DeviceDiscovery) {
-        const discoveryTopic = `${this.config.discovery_prefix}/device/rethink/${id}`
+    publishConfig(id: string, config: DeviceDiscovery, discoveryId: string = id) {
+        const discoveryTopic = `${this.config.discovery_prefix}/device/rethink/${discoveryId}`
         const deviceTopic = `${this.config.rethink_prefix}/${id}`
         const replacements = {
             $this: deviceTopic,
@@ -138,6 +138,11 @@ export class Connection extends TypedEmitter<ConnectionEvents> {
         const configPayload = JSON.stringify(recursiveReplace(config, replacements))
         log('publish', configPayload)
         this.client.publish(discoveryTopic + '/config', configPayload)
+    }
+
+    clearConfig(id: string, discoveryId: string = id) {
+        const discoveryTopic = `${this.config.discovery_prefix}/device/rethink/${discoveryId}`
+        this.client.publish(discoveryTopic + '/config', '')
     }
 
     publishProperty(id: string, property: string, value: string | number, options?: mqtt.IClientPublishOptions) {

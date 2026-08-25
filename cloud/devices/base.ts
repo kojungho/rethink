@@ -3,7 +3,7 @@ import type { Connection, DeviceDiscovery } from '../homeassistant'
 
 export default class HADevice {
     config: DeviceDiscovery | undefined
-    private removedComponents: Record<string, { platform: string }> = {}
+    protected removedComponents: Record<string, { platform: string }> = {}
 
     static config(meta: Metadata, deviceInfo?: object): DeviceDiscovery {
         return {
@@ -15,6 +15,7 @@ export default class HADevice {
                 model: meta.modelName,
                 sw_version: meta.swVersion,
                 ...(deviceInfo || {}),
+                ...(meta.alias ? { name: meta.alias } : {}),
             },
             origin: {
                 name: 'rethink',
@@ -40,6 +41,12 @@ export default class HADevice {
     }
 
     start() {}
+
+    setDeviceName(name: string) {
+        if (!this.config || this.config.device.name === name) return
+        this.config.device.name = name
+        this.publishConfig()
+    }
 
     // HA-side
     publishConfig() {

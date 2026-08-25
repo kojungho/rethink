@@ -94,10 +94,9 @@ function t1setup(manager: DeviceManager) {
         res.json({})
     })
 
-    https.createServer({ ...ca, SNICallback: sniCallback }, app).listen(
-        config.thinq1_https_port.bind,
-        config.thinq1_https_port.address,
-    )
+    https
+        .createServer({ ...ca, SNICallback: sniCallback }, app)
+        .listen(config.thinq1_https_port.bind, config.thinq1_https_port.address)
     const acceptor = new T1Acceptor()
     tls.createServer({ ...ca, SNICallback: sniCallback }, acceptor.accept.bind(acceptor)).listen(
         config.thinq1_port.bind,
@@ -157,6 +156,8 @@ if (config.bridge) {
     mkdirSync(config.bridge.storage_path, { recursive: true })
     const storage = new JSONStorage(config.bridge.storage_path)
     bridge = new Bridge(storage, manager)
+    ha.setAliasResolver((id) => bridge?.getDeviceAlias(id))
+    bridge.on('aliasesChanged', () => ha.refreshDeviceNames())
 }
 
 if (config.management_port)

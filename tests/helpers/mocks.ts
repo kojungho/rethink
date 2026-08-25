@@ -19,11 +19,16 @@ export type DeviceInfo = {
 
 export class MockHAConnection extends EventEmitter {
     devices: Record<string, DeviceInfo> = {}
+    clearedConfigs: string[] = []
     isConnected = true
 
-    publishConfig(id: string, config: DeviceDiscovery) {
-        if (!this.devices[id]) this.devices[id] = { properties: {} }
-        this.devices[id].config = config
+    publishConfig(id: string, config: DeviceDiscovery, discoveryId: string = id) {
+        if (!this.devices[discoveryId]) this.devices[discoveryId] = { properties: {} }
+        this.devices[discoveryId].config = config
+    }
+
+    clearConfig(_id: string, discoveryId: string = _id) {
+        this.clearedConfigs.push(discoveryId)
     }
 
     publishProperty(id: string, property: string, value: string | number) {

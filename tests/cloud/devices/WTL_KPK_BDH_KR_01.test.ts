@@ -35,6 +35,11 @@ function makeDevice() {
     return { ha, thinq, dev }
 }
 
+function assertMinutesFromNow(value: unknown, minutes: number) {
+    assert.equal(typeof value, 'string')
+    assert.ok(Math.abs((Date.parse(value as string) - Date.now()) / 60_000 - minutes) < 0.1)
+}
+
 describe('WTL_KPK_BDH_KR_01', () => {
     test('publishes the ThinQ cycle count as a cumulative Korean washer sensor', () => {
         const { ha } = makeDevice()
@@ -57,7 +62,7 @@ describe('WTL_KPK_BDH_KR_01', () => {
         assert.equal(properties['washer/state'], 'POWEROFF')
         assert.equal(properties['washer/course'], 'NORMAL')
         assert.equal(properties['washer/buzzer'], 'Very High')
-        assert.equal(properties['washer/remaining_time'], 0)
+        assert.equal(properties['washer/remaining_time'], '')
         assert.equal(properties['washer/cycle_count'], 43)
         assert.equal(properties['dryer/power'], 'OFF')
         assert.equal(properties['dryer/state'], 'POWEROFF')
@@ -81,7 +86,7 @@ describe('WTL_KPK_BDH_KR_01', () => {
         assert.equal(ha.devices[DEVICE_ID].properties['dryer/power'], 'ON')
         assert.equal(ha.devices[DEVICE_ID].properties['dryer/state'], 'INITIAL')
         assert.equal(ha.devices[DEVICE_ID].properties['dryer/course'], 'CLOTHCARE')
-        assert.equal(ha.devices[DEVICE_ID].properties['dryer/remaining_time'], 110)
+        assertMinutesFromNow(ha.devices[DEVICE_ID].properties['dryer/remaining_time'], 110)
 
         thinq.emit('data', buf(WASHER_POWER_OFF_STATUS))
         assert.equal(ha.devices[DEVICE_ID].properties['washer/power'], 'OFF')
@@ -96,11 +101,11 @@ describe('WTL_KPK_BDH_KR_01', () => {
 
         assert.equal(ha.devices[DEVICE_ID].properties['washer/power'], 'ON')
         assert.equal(ha.devices[DEVICE_ID].properties['washer/state'], 'INITIAL')
-        assert.equal(ha.devices[DEVICE_ID].properties['washer/remaining_time'], 33)
+        assertMinutesFromNow(ha.devices[DEVICE_ID].properties['washer/remaining_time'], 33)
         assert.equal(ha.devices[DEVICE_ID].properties['washer/cycle_count'], 43)
         assert.equal(ha.devices[DEVICE_ID].properties['dryer/power'], 'ON')
         assert.equal(ha.devices[DEVICE_ID].properties['dryer/state'], 'INITIAL')
-        assert.equal(ha.devices[DEVICE_ID].properties['dryer/remaining_time'], 110)
+        assertMinutesFromNow(ha.devices[DEVICE_ID].properties['dryer/remaining_time'], 110)
     })
 
     test('decodes laundry care feedback from captured Korean command-status responses', () => {

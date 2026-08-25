@@ -491,6 +491,7 @@ const INIT_LCD_THEMES: Record<number, string> = {
 
 export default class Device extends AABBDevice {
     protected readonly dryerStateOffset: number = 53
+    private remainingTargets: Partial<Record<'washer' | 'dryer', { minutes: number; timestamp: string }>> = {}
 
     constructor(HA: Connection, thinq: Thinq2Device, meta: Metadata) {
         super(HA, thinq)
@@ -582,8 +583,7 @@ export default class Device extends AABBDevice {
                         platform: 'sensor',
                         unique_id: '$deviceid-washer-remaining-time',
                         state_topic: '$this/washer/remaining_time',
-                        device_class: 'duration',
-                        unit_of_measurement: 'min',
+                        device_class: 'timestamp',
                         name: '세탁기 남은 시간',
                     },
                     washer_initial_time: {
@@ -638,8 +638,7 @@ export default class Device extends AABBDevice {
                         platform: 'sensor',
                         unique_id: '$deviceid-dryer-remaining-time',
                         state_topic: '$this/dryer/remaining_time',
-                        device_class: 'duration',
-                        unit_of_measurement: 'min',
+                        device_class: 'timestamp',
                         name: '건조기 남은 시간',
                     },
                     dryer_initial_time: {
@@ -889,6 +888,8 @@ export default class Device extends AABBDevice {
             {
                 washer_buzzer: { platform: 'select' },
                 dryer_buzzer: { platform: 'select' },
+                washer_remaining_time: { platform: 'sensor' },
+                dryer_remaining_time: { platform: 'sensor' },
                 washer_remote_maintain: { platform: 'switch' },
                 dryer_remote_maintain: { platform: 'switch' },
                 init_lcd: { platform: 'select' },
@@ -1058,7 +1059,11 @@ export default class Device extends AABBDevice {
         this.publishProperty('washer/water_level', Device.formatEnum(WASHER_WATER_LEVEL, block[11]))
         this.publishProperty('washer/load_item', Device.formatEnum(WASHER_LOAD_ITEM, block[12]))
         this.publishProperty('washer/reserve_time', block.readUInt16BE(13))
-        this.publishProperty('washer/remaining_time', block.readUInt16BE(15))
+        const washerState = block[23]
+        this.publishProperty(
+            'washer/remaining_time',
+            this.remainingTimestamp('washer', block.readUInt16BE(15), washerState, WASHER_STATES),
+        )
         this.publishProperty('washer/initial_time', block.readUInt16BE(17))
         this.publishProperty('washer/energy', block.readUInt16BE(19))
         this.publishProperty('washer/load_level', Device.formatEnum(WASHER_LOAD_LEVEL, block[26]))
@@ -1073,7 +1078,6 @@ export default class Device extends AABBDevice {
         //
         this.publishProperty('shared/init_lcd', Device.formatEnum(INIT_LCD_THEMES, block[48]))
 
-        const washerState = block[23]
         this.publishProperty('washer/power', washerState !== 0 ? 'ON' : 'OFF')
         this.publishProperty('washer/state', Device.formatEnum(WASHER_STATES, washerState))
         this.publishProperty('washer/error', Device.formatEnum(WASHER_ERRORS, block[21]))
@@ -1093,10 +1097,13 @@ export default class Device extends AABBDevice {
         this.publishProperty('dryer/time_dry', Device.formatEnum(DRYER_TIME_DRY, dryer[4]))
         this.publishProperty('dryer/course', Device.formatEnum(DRYER_COURSES, dryer[5]))
         this.publishProperty('dryer/reserve_time', dryer.readUInt16BE(7))
-        this.publishProperty('dryer/remaining_time', dryer.readUInt16BE(9))
+        const dryerState = dryer[13]
+        this.publishProperty(
+            'dryer/remaining_time',
+            this.remainingTimestamp('dryer', dryer.readUInt16BE(9), dryerState, DRYER_STATES),
+        )
         this.publishProperty('dryer/initial_time', dryer.readUInt16BE(11))
 
-        const dryerState = dryer[13]
         this.publishProperty('dryer/power', dryerState !== 0 ? 'ON' : 'OFF')
         this.publishProperty('dryer/state', Device.formatEnum(DRYER_STATES, dryerState))
         this.publishProperty('dryer/error', Device.formatEnum(DRYER_ERRORS, dryer[15]))
@@ -1105,5 +1112,30 @@ export default class Device extends AABBDevice {
         this.publishProperty('dryer/remote_start', dryer[26] & 0x40 ? 'ON' : 'OFF')
         this.publishProperty('dryer/child_lock', dryer[26] & 0x10 ? 'ON' : 'OFF')
         this.publishProperty('dryer/remote_maintain', dryer[27] & 0x02 ? 'ON' : 'OFF')
+    }
+
+    private remainingTimestamp(
+        unit: 'washer' | 'dryer',
+        minutes: number,
+        state: number,
+        states: Record<number, string>,
+    ) {
+        const inactive = new Set([
+            'POWEROFF',
+            'END',
+            'ERROR',
+            'ERROR_AUTO_OFF',
+            'END_REMOTE_MAINTAIN_ON',
+            'END_WAITING',
+        ])
+        if (minutes <= 0 || inactive.has(states[state] ?? '')) {
+            delete this.remainingTargets[unit]
+            return ''
+        }
+        const previous = this.remainingTargets[unit]
+        if (previous?.minutes === minutes) return previous.timestamp
+        const timestamp = new Date(Date.now() + minutes * 60_000).toISOString()
+        this.remainingTargets[unit] = { minutes, timestamp }
+        return timestamp
     }
 }

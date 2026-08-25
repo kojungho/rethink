@@ -24,6 +24,11 @@ function frame(inner: Buffer) {
     return Buffer.concat([Buffer.from([0xaa, inner.length + 4]), inner, Buffer.from([0x00, 0xbb])])
 }
 
+function assertMinutesFromNow(value: unknown, minutes: number) {
+    assert.equal(typeof value, 'string')
+    assert.ok(Math.abs((Date.parse(value as string) - Date.now()) / 60_000 - minutes) < 0.1)
+}
+
 describe('H01', () => {
     test('publishes status, settings, operation, remote-start, energy, and diagnostic components', () => {
         const { ha } = makeDevice()
@@ -31,11 +36,17 @@ describe('H01', () => {
 
         assert.equal(components.state.platform, 'sensor')
         assert.equal(components.state.device_class, 'enum')
-        assert.deepEqual(components.state.options, ['OFF', 'INITIAL', 'RUNNING', 'PAUSE'])
+        assert.ok((components.state.options as string[]).includes('NIGHT_DRY'))
+        assert.ok((components.state.options as string[]).includes('POWER_FAIL'))
         assert.equal(components.course.device_class, 'enum')
         assert.ok((components.course.options as string[]).includes('통살균'))
         assert.equal(components.downloaded_course.device_class, 'enum')
         assert.ok((components.downloaded_course.options as string[]).includes('MACHINE_CLEAN'))
+        assert.equal(components.remaining_time.device_class, 'timestamp')
+        assert.equal(components.remaining_time.unit_of_measurement, undefined)
+        assert.equal(components.tub_clean_count.name, '통살균 후 사용 횟수')
+        assert.equal(components.filter_remaining.unit_of_measurement, '%')
+        assert.equal(components.filter_remaining.entity_category, 'diagnostic')
         assert.equal(components.door.platform, 'binary_sensor')
         assert.equal(components.rinse_level.platform, 'number')
         assert.equal(components.auto_dry, undefined)
@@ -70,6 +81,7 @@ describe('H01', () => {
         assert.deepEqual(configs[0].state, { platform: 'sensor' })
         assert.deepEqual(configs[0].course, { platform: 'sensor' })
         assert.deepEqual(configs[0].downloaded_course, { platform: 'sensor' })
+        assert.deepEqual(configs[0].remaining_time, { platform: 'sensor' })
         assert.deepEqual(configs[0].remote_steam, { platform: 'switch' })
         assert.deepEqual(configs[0].remote_high_temp, { platform: 'switch' })
         assert.deepEqual(configs[0].remote_extra_dry, { platform: 'switch' })
@@ -103,13 +115,15 @@ describe('H01', () => {
         assert.equal(properties.power, 'OFF')
         assert.equal(properties.course, '꺼짐')
         assert.equal(properties.initial_time, 99)
-        assert.equal(properties.remaining_time, 1)
+        assert.equal(properties.remaining_time, '')
         assert.equal(properties.delay_start, 0)
         assert.equal(properties.door, 'OPEN')
         assert.equal(properties.rinse_level, 0)
         assert.equal(properties.salt_level, 0)
         assert.equal(properties.remote_mode, 'ALWAYS')
         assert.equal(properties.buzzer, 'LOW')
+        assert.equal(properties.filter_remaining, 65)
+        assert.equal(properties.tub_clean_count, 3)
     })
 
     test('classifies repeated recognized packets as mapped and unknown packets as unmapped', () => {
@@ -140,6 +154,7 @@ describe('H01', () => {
         current[14] = 0x04
         current[15] = 0x82
         current[16] = 0x84
+        current[17] = 0x40
         current[19] = 0x40
         current[20] = 0x03
         current[21] = 0x30
@@ -150,7 +165,7 @@ describe('H01', () => {
         assert.equal(properties.power, 'ON')
         assert.equal(properties.course, '자동')
         assert.equal(properties.initial_time, 90)
-        assert.equal(properties.remaining_time, 42)
+        assertMinutesFromNow(properties.remaining_time, 42)
         assert.equal(properties.delay_start, 2)
         assert.equal(properties.door, 'OPEN')
         assert.equal(properties.clean_reminder, 'ON')
@@ -162,6 +177,7 @@ describe('H01', () => {
         assert.equal(properties.remote_mode, 'ALWAYS')
         assert.equal(properties.end_alarm, 'ON')
         assert.equal(properties.buzzer, 'HIGH')
+        assert.equal(properties.filter_remaining, 64)
         assert.equal(properties.downloaded_course, 'GLASS_AND_WINE')
         assert.equal(properties.extra_rinse, 3)
     })

@@ -78,6 +78,11 @@ function makeDevice() {
     return { ha, thinq, dev }
 }
 
+function assertMinutesFromNow(value: unknown, minutes: number) {
+    assert.equal(typeof value, 'string')
+    assert.ok(Math.abs((Date.parse(value as string) - Date.now()) / 60_000 - minutes) < 0.1)
+}
+
 describe(MODEL_ID, () => {
     test('config exposes expected HA components', () => {
         const { ha } = makeDevice()
@@ -121,6 +126,8 @@ describe(MODEL_ID, () => {
         assert.ok((dryerState.options as string[]).includes('POWEROFF'))
         assert.ok((dryerState.options as string[]).includes('DRUM_CARE'))
         assert.ok((dryerState.options as string[]).includes('AI_LOAD_CHECK'))
+        assert.equal((components.washer_remaining_time as Record<string, unknown>).device_class, 'timestamp')
+        assert.equal((components.dryer_remaining_time as Record<string, unknown>).device_class, 'timestamp')
         assert.equal(washerPower.optimistic, undefined)
         assert.equal(dryerPower.optimistic, undefined)
         assert.equal((components.washer_buzzer as Record<string, unknown>).entity_category, 'config')
@@ -142,6 +149,8 @@ describe(MODEL_ID, () => {
         assert.equal(configs.length, 2)
         assert.deepEqual(configs[0].washer_buzzer, { platform: 'select' })
         assert.deepEqual(configs[0].dryer_buzzer, { platform: 'select' })
+        assert.deepEqual(configs[0].washer_remaining_time, { platform: 'sensor' })
+        assert.deepEqual(configs[0].dryer_remaining_time, { platform: 'sensor' })
         assert.deepEqual(configs[0].washer_remote_maintain, { platform: 'switch' })
         assert.deepEqual(configs[0].dryer_remote_maintain, { platform: 'switch' })
         assert.deepEqual(configs[0].init_lcd, { platform: 'select' })
@@ -157,7 +166,7 @@ describe(MODEL_ID, () => {
         assert.equal(props['washer/state'], 'RUNNING')
         assert.equal(props['washer/course'], 'DELICATES')
         assert.equal(props['washer/temp'], 'N/A')
-        assert.equal(props['washer/remaining_time'], 45)
+        assertMinutesFromNow(props['washer/remaining_time'], 45)
         assert.equal(props['washer/initial_time'], 45)
         assert.equal(props['shared/init_lcd'], 'Summer 2')
     })
@@ -168,7 +177,7 @@ describe(MODEL_ID, () => {
         const props = ha.devices[DEVICE_ID].properties
         assert.equal(props['dryer/power'], 'OFF')
         assert.equal(props['dryer/state'], 'POWEROFF')
-        assert.equal(props['dryer/remaining_time'], 60)
+        assert.equal(props['dryer/remaining_time'], '')
     })
 
     test('0x42 washer door open publishes washer/door=OPEN', () => {
@@ -271,7 +280,7 @@ describe(MODEL_ID, () => {
         const props = ha.devices[DEVICE_ID].properties
         assert.equal(props['washer/power'], 'ON')
         assert.equal(props['washer/state'], 'RUNNING')
-        assert.equal(props['washer/remaining_time'], 42)
+        assertMinutesFromNow(props['washer/remaining_time'], 42)
         assert.equal(props['washer/initial_time'], 45)
         assert.equal(props['washer/buzzer'], 'Medium')
         assert.equal(props['washer/remote_start'], 'ON')
@@ -287,7 +296,7 @@ describe(MODEL_ID, () => {
         const props = ha.devices[DEVICE_ID].properties
         assert.equal(props['dryer/power'], 'OFF')
         assert.equal(props['dryer/state'], 'POWEROFF')
-        assert.equal(props['dryer/remaining_time'], 0)
+        assert.equal(props['dryer/remaining_time'], '')
         assert.equal(props['dryer/buzzer'], 'Off')
         assert.equal(props['dryer/duct_clogging'], 'NONE')
         assert.equal(props['dryer/remote_start'], 'OFF')

@@ -17,7 +17,20 @@ const STATES: Record<number, string> = {
     // power entity instead of presenting an ambiguous standby state.
     0x04: 'OFF',
 }
-const STATE_OPTIONS = [...new Set(Object.values(STATES))]
+const STATE_OPTIONS = [
+    'OFF',
+    'INITIAL',
+    'RUNNING',
+    'PAUSE',
+    'END',
+    'RESERVED',
+    'NIGHT_DRY',
+    'ERROR',
+    'RINSING',
+    'POWER_FAIL',
+    'DRYING',
+    'CANCEL',
+]
 
 const COURSES: Record<number, string> = {
     0x00: '꺼짐',
@@ -86,6 +99,7 @@ export default class Device extends AABBDevice {
         delay: 0,
         extraRinse: 0,
     }
+    private remainingTarget?: { minutes: number; timestamp: string }
 
     constructor(HA: Connection, thinq: Thinq2Device, meta: Metadata) {
         super(HA, thinq)
@@ -156,8 +170,27 @@ export default class Device extends AABBDevice {
                         unique_id: '$deviceid-remaining-time',
                         state_topic: '$this/remaining_time',
                         name: '남은 시간',
-                        device_class: 'duration',
-                        unit_of_measurement: 'min',
+                        device_class: 'timestamp',
+                    },
+                    tub_clean_count: {
+                        platform: 'sensor',
+                        unique_id: '$deviceid-tub-clean-count',
+                        state_topic: '$this/tub_clean_count',
+                        name: '통살균 후 사용 횟수',
+                        unit_of_measurement: '회',
+                        state_class: 'measurement',
+                        icon: 'mdi:counter',
+                        entity_category: 'diagnostic',
+                    },
+                    filter_remaining: {
+                        platform: 'sensor',
+                        unique_id: '$deviceid-filter-remaining',
+                        state_topic: '$this/filter_remaining',
+                        name: '필터 잔량',
+                        unit_of_measurement: '%',
+                        state_class: 'measurement',
+                        icon: 'mdi:air-filter',
+                        entity_category: 'diagnostic',
                     },
                     delay_start: {
                         platform: 'sensor',
@@ -399,6 +432,7 @@ export default class Device extends AABBDevice {
                 state: { platform: 'sensor' },
                 course: { platform: 'sensor' },
                 downloaded_course: { platform: 'sensor' },
+                remaining_time: { platform: 'sensor' },
                 remote_steam: { platform: 'switch' },
                 remote_high_temp: { platform: 'switch' },
                 remote_extra_dry: { platform: 'switch' },
@@ -483,7 +517,7 @@ export default class Device extends AABBDevice {
         this.publishProperty('safe_rinse', data[15] & 0x04 ? 'ON' : 'OFF')
         this.publishProperty('hot_air_dry', this.hotAirDry(data[15]))
         this.publishProperty('initial_time', data[3] * 60 + data[4])
-        this.publishProperty('remaining_time', data[7] * 60 + data[8])
+        this.publishProperty('remaining_time', this.remainingTimestamp(data[7] * 60 + data[8], state))
         this.publishProperty('delay_start', data[9])
         this.publishProperty('door', data[11] & 0x02 ? 'OPEN' : 'CLOSED')
         this.publishProperty('clean_reminder', data[11] & 0x40 ? 'ON' : 'OFF')
@@ -495,11 +529,29 @@ export default class Device extends AABBDevice {
         this.publishProperty('remote_mode', remoteMode)
         this.publishProperty('end_alarm', data[16] & 0x04 ? 'ON' : 'OFF')
         this.publishProperty('buzzer', buzzer)
+        // ThinQ Connect exposes this field as remainFreshAirFilterPercent.
+        // The current cloud value (64%) matches H01 status byte 17 (0x40),
+        // while the earlier captured status carries 0x41 (65%) here.
+        this.publishProperty('filter_remaining', data[17])
         this.publishProperty(
             'downloaded_course',
             downloadedCourse ? formatEnum(DOWNLOADED_COURSES, downloadedCourse) : 'NONE',
         )
         this.publishProperty('extra_rinse', (data[21] & 0x30) >> 4)
+        // The legacy ThinQ model names the final status byte TclCount. It is
+        // the number of dishwasher uses since the last machine-clean cycle.
+        this.publishProperty('tub_clean_count', data[23])
+    }
+
+    private remainingTimestamp(minutes: number, state: number) {
+        if (minutes <= 0 || (state !== 0x01 && state !== 0x02 && state !== 0x03)) {
+            this.remainingTarget = undefined
+            return ''
+        }
+        if (this.remainingTarget?.minutes === minutes) return this.remainingTarget.timestamp
+        const timestamp = new Date(Date.now() + minutes * 60_000).toISOString()
+        this.remainingTarget = { minutes, timestamp }
+        return timestamp
     }
 
     private remoteMode(value: number) {

@@ -9,7 +9,7 @@ from homeassistant.components import mqtt
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorEntityDescription
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import DOMAIN
@@ -21,7 +21,8 @@ MQTT_PREFIX: Final = "rethink"
 class RethinkStateDescription(SensorEntityDescription):
     """Description of one Rethink current-state sensor."""
 
-    device_identifier: str
+    legacy_unique_id: str
+    target_entity_id: str
     topic: str
     options: tuple[str, ...]
     value_map: dict[str, str]
@@ -124,7 +125,8 @@ STATE_SENSORS: Final = (
         key="dishwasher_current_state",
         translation_key="dishwasher_current_state",
         device_class=SensorDeviceClass.ENUM,
-        device_identifier="87624224-726e-11d7-91ca-2028bcd3177e",
+        legacy_unique_id="87624224-726e-11d7-91ca-2028bcd3177e-state",
+        target_entity_id="sensor.lg_dishwasher_state",
         topic=f"{MQTT_PREFIX}/87624224-726e-11d7-91ca-2028bcd3177e/state",
         options=tuple(DISHWASHER_VALUES.values()),
         value_map=DISHWASHER_VALUES,
@@ -133,7 +135,8 @@ STATE_SENSORS: Final = (
         key="washer_current_state",
         translation_key="washer_current_state",
         device_class=SensorDeviceClass.ENUM,
-        device_identifier="353b81b8-37fa-1e9b-a09a-1c3929a124c9-washer",
+        legacy_unique_id="353b81b8-37fa-1e9b-a09a-1c3929a124c9-washer-state",
+        target_entity_id="sensor.lg_washtower_washer_state",
         topic=f"{MQTT_PREFIX}/353b81b8-37fa-1e9b-a09a-1c3929a124c9/washer/state",
         options=tuple(WASHER_VALUES.values()),
         value_map=WASHER_VALUES,
@@ -142,7 +145,8 @@ STATE_SENSORS: Final = (
         key="dryer_current_state",
         translation_key="dryer_current_state",
         device_class=SensorDeviceClass.ENUM,
-        device_identifier="353b81b8-37fa-1e9b-a09a-1c3929a124c9-dryer",
+        legacy_unique_id="353b81b8-37fa-1e9b-a09a-1c3929a124c9-dryer-state",
+        target_entity_id="sensor.lg_washtower_dryer_state",
         topic=f"{MQTT_PREFIX}/353b81b8-37fa-1e9b-a09a-1c3929a124c9/dryer/state",
         options=tuple(DRYER_VALUES.values()),
         value_map=DRYER_VALUES,
@@ -156,7 +160,28 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up the three translated current-state sensors."""
-    async_add_entities(RethinkStateSensor(description) for description in STATE_SENSORS)
+    registry = er.async_get(hass)
+    entities = []
+    for description in STATE_SENSORS:
+        legacy_entity_id = registry.async_get_entity_id(
+            "sensor", mqtt.DOMAIN, description.legacy_unique_id
+        )
+        legacy_entry = registry.async_get(legacy_entity_id) if legacy_entity_id else None
+        current_entity_id = registry.async_get_entity_id(
+            "sensor", DOMAIN, f"rethink-{description.key}"
+        )
+        current_entry = registry.async_get(current_entity_id) if current_entity_id else None
+        target_device_id = (
+            legacy_entry.device_id
+            if legacy_entry
+            else current_entry.device_id
+            if current_entry
+            else None
+        )
+        if legacy_entity_id:
+            registry.async_remove(legacy_entity_id)
+        entities.append(RethinkStateSensor(description, target_device_id))
+    async_add_entities(entities)
 
 
 class RethinkStateSensor(SensorEntity):
@@ -165,20 +190,24 @@ class RethinkStateSensor(SensorEntity):
     _attr_has_entity_name = True
     _attr_should_poll = False
 
-    def __init__(self, description: RethinkStateDescription) -> None:
+    def __init__(self, description: RethinkStateDescription, target_device_id: str | None) -> None:
         self.entity_description = description
         self._attr_unique_id = f"rethink-{description.key}"
         self._attr_options = list(description.options)
         self._attr_native_value = None
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Attach the sensor to its existing MQTT device."""
-        return DeviceInfo(identifiers={(mqtt.DOMAIN, self.entity_description.device_identifier)})
+        self._target_device_id = target_device_id
 
     async def async_added_to_hass(self) -> None:
         """Subscribe to the raw English Rethink state topic."""
         await super().async_added_to_hass()
+        registry = er.async_get(self.hass)
+        entry = registry.async_get(self.entity_id)
+        if entry:
+            registry.async_update_entity(
+                self.entity_id,
+                new_entity_id=self.entity_description.target_entity_id,
+                device_id=self._target_device_id,
+            )
         self.async_on_remove(
             await mqtt.async_subscribe(
                 self.hass,

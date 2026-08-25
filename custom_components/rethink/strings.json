@@ -1,0 +1,34 @@
+{
+  "config": {
+    "abort": {
+      "already_configured": "Rethink is already configured."
+    },
+    "step": {
+      "user": {
+        "title": "Rethink"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "dishwasher_current_state": {
+        "name": "Current state",
+        "state": {
+          "off": "Off", "initial": "Initializing", "running": "Running", "pause": "Paused", "end": "Finished", "reserved": "Reserved", "night_dry": "Night dry", "error": "Error", "rinsing": "Rinsing", "power_fail": "Power failure", "drying": "Drying", "cancel": "Cancelled"
+        }
+      },
+      "washer_current_state": {
+        "name": "Current state",
+        "state": {
+          "power_off": "Power off", "initial": "Initializing", "pause": "Paused", "detecting": "Detecting", "display_load": "Displaying load", "add_drain": "Additional draining", "detergent_amount": "Checking detergent amount", "reserved": "Reserved", "soaking": "Soaking", "prewash": "Prewash", "running": "Running", "rinsing": "Rinsing", "rinse_hold": "Rinse hold", "spinning": "Spinning", "drying": "Drying", "end": "Finished", "cooldown": "Cooling down", "cool_fan": "Fan cooling", "steam_softening": "Steam softening", "refreshing": "Refreshing", "error": "Error", "error_auto_off": "Auto off after error", "shoes_module": "Shoes module", "doing_diagnosis": "Diagnosing", "doing_firmware_update": "Updating firmware", "frozen_prevent_initial": "Freeze prevention initializing", "frozen_prevent_pause": "Freeze prevention paused", "frozen_prevent_running": "Freeze prevention running", "service": "Service", "test": "Test", "auto_test": "Auto test", "firmware_update": "Firmware update", "audible_diagnosis": "Audible diagnosis", "auto_door_open_pause": "Waiting to open door", "confirm_start_for_control": "Waiting for start confirmation", "clothing_recognition": "Detecting clothing", "detergent_input": "Dispensing detergent", "softener_input": "Dispensing softener", "pollution_detecting": "Detecting soil level", "tub_cleaning": "Tub cleaning", "steam": "Steam", "laundry_care": "Laundry care", "ezdispense_cleaning": "Auto dispenser cleaning"
+        }
+      },
+      "dryer_current_state": {
+        "name": "Current state",
+        "state": {
+          "power_off": "Power off", "initial": "Initializing", "running": "Running", "pause": "Paused", "end": "Finished", "error": "Error", "audible_diagnosis": "Audible diagnosis", "drying": "Drying", "cooling": "Cooling", "wrinkle_care": "Wrinkle care", "reserved": "Reserved", "delay_load": "Waiting for reservation", "spin_reserve": "Spin reserved", "auto_test": "Auto test", "detecting": "Detecting", "steam": "Steam", "clothing_recognition": "Detecting clothing", "condenser_clean": "Cleaning condenser", "bedding_brushing": "Bedding refresh", "dry_refreshing": "Dry refresh", "allergy_care": "Allergy care", "condenser_care": "Condenser care", "dry_ready": "Preparing to dry", "laundry_care": "Laundry care", "dehumidification": "Dehumidifying", "dehumidification_end": "Dehumidification finished", "drum_care": "Drum care", "ai_load_check": "AI load check"
+        }
+      }
+    }
+  }
+}

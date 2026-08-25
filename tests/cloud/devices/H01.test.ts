@@ -35,9 +35,7 @@ describe('H01', () => {
         const components = ha.devices[DEVICE_ID].config!.components as Record<string, Record<string, unknown>>
 
         assert.equal(components.state.platform, 'sensor')
-        assert.equal(components.state.device_class, 'enum')
-        assert.ok((components.state.options as string[]).includes('야간 건조'))
-        assert.ok((components.state.options as string[]).includes('정전'))
+        assert.deepEqual(components.state, { platform: 'sensor' })
         assert.equal(components.course.device_class, 'enum')
         assert.ok((components.course.options as string[]).includes('통살균'))
         assert.equal(components.downloaded_course.device_class, 'enum')

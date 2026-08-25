@@ -1307,6 +1307,9 @@ export default class Device extends AABBDevice {
             Object.entries(this.config.components)
                 .filter(([id]) => includeComponent(id))
                 .map(([id, component]) => {
+                    if (id === `${unit}_state`) {
+                        return [id, { platform: 'sensor' } as ComponentInfo]
+                    }
                     const localized = {
                         ...component,
                         name:

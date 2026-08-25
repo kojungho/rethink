@@ -1,0 +1,34 @@
+{
+  "config": {
+    "abort": {
+      "already_configured": "Rethink이 이미 구성되어 있습니다."
+    },
+    "step": {
+      "user": {
+        "title": "Rethink"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "dishwasher_current_state": {
+        "name": "현재 상태",
+        "state": {
+          "off": "꺼짐", "initial": "초기화", "running": "운전 중", "pause": "일시정지", "end": "종료", "reserved": "예약", "night_dry": "야간 건조", "error": "오류", "rinsing": "헹굼 중", "power_fail": "정전", "drying": "건조 중", "cancel": "취소"
+        }
+      },
+      "washer_current_state": {
+        "name": "현재 상태",
+        "state": {
+          "power_off": "전원 꺼짐", "initial": "초기화", "pause": "일시정지", "detecting": "감지 중", "display_load": "세탁물 표시", "add_drain": "추가 배수", "detergent_amount": "세제량 확인", "reserved": "예약", "soaking": "불림", "prewash": "애벌세탁", "running": "운전 중", "rinsing": "헹굼 중", "rinse_hold": "헹굼 대기", "spinning": "탈수 중", "drying": "건조 중", "end": "종료", "cooldown": "냉각 중", "cool_fan": "송풍 냉각", "steam_softening": "스팀 섬유유연", "refreshing": "리프레시 중", "error": "오류", "error_auto_off": "오류 후 자동 꺼짐", "shoes_module": "신발 모듈", "doing_diagnosis": "진단 중", "doing_firmware_update": "펌웨어 업데이트 중", "frozen_prevent_initial": "동결 방지 초기화", "frozen_prevent_pause": "동결 방지 일시정지", "frozen_prevent_running": "동결 방지 운전 중", "service": "서비스", "test": "시험", "auto_test": "자동 시험", "firmware_update": "펌웨어 업데이트", "audible_diagnosis": "소리 진단", "auto_door_open_pause": "자동 문 열림 대기", "confirm_start_for_control": "시작 확인 대기", "clothing_recognition": "의류 감지 중", "detergent_input": "세제 투입", "softener_input": "섬유유연제 투입", "pollution_detecting": "오염도 감지 중", "tub_cleaning": "통살균 중", "steam": "스팀 중", "laundry_care": "세탁물 케어", "ezdispense_cleaning": "자동 세제함 세척"
+        }
+      },
+      "dryer_current_state": {
+        "name": "현재 상태",
+        "state": {
+          "power_off": "전원 꺼짐", "initial": "초기화", "running": "운전 중", "pause": "일시정지", "end": "종료", "error": "오류", "audible_diagnosis": "소리 진단", "drying": "건조 중", "cooling": "냉각 중", "wrinkle_care": "구김 방지", "reserved": "예약", "delay_load": "예약 대기", "spin_reserve": "탈수 예약", "auto_test": "자동 시험", "detecting": "감지 중", "steam": "스팀 중", "clothing_recognition": "의류 감지 중", "condenser_clean": "콘덴서 세척", "bedding_brushing": "침구 털기", "dry_refreshing": "건조 리프레시", "allergy_care": "알레르기 케어", "condenser_care": "콘덴서 케어", "dry_ready": "건조 준비", "laundry_care": "세탁물 케어", "dehumidification": "제습 중", "dehumidification_end": "제습 종료", "drum_care": "드럼 케어", "ai_load_check": "AI 세탁물 확인"
+        }
+      }
+    }
+  }
+}

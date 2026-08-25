@@ -516,7 +516,10 @@ export default class Device extends AABBDevice {
         this.publishProperty('intensive_wash', this.intensiveWash(data[12]))
         this.publishProperty('safe_rinse', data[15] & 0x04 ? 'ON' : 'OFF')
         this.publishProperty('hot_air_dry', this.hotAirDry(data[15]))
-        this.publishProperty('initial_time', data[3] * 60 + data[4])
+        this.publishProperty(
+            'initial_time',
+            state === 0x01 || state === 0x02 || state === 0x03 ? data[3] * 60 + data[4] : '',
+        )
         this.publishProperty('remaining_time', this.remainingTimestamp(data[7] * 60 + data[8], state))
         this.publishProperty('delay_start', data[9])
         this.publishProperty('door', data[11] & 0x02 ? 'OPEN' : 'CLOSED')

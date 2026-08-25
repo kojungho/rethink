@@ -1063,11 +1063,13 @@ export default class Device extends AABBDevice {
         this.publishProperty('washer/load_item', Device.formatEnum(WASHER_LOAD_ITEM, block[12]))
         this.publishProperty('washer/reserve_time', block.readUInt16BE(13))
         const washerState = block[23]
+        const washerStateName = Device.formatEnum(WASHER_STATES, washerState)
+        const washerPowerOff = WASHER_POWER_OFF_STATES.has(washerStateName)
         this.publishProperty(
             'washer/remaining_time',
             this.remainingTimestamp('washer', block.readUInt16BE(15), washerState, WASHER_STATES),
         )
-        this.publishProperty('washer/initial_time', block.readUInt16BE(17))
+        this.publishProperty('washer/initial_time', washerPowerOff ? '' : block.readUInt16BE(17))
         this.publishProperty('washer/energy', block.readUInt16BE(19))
         this.publishProperty('washer/load_level', Device.formatEnum(WASHER_LOAD_LEVEL, block[26]))
         this.publishProperty('washer/rinse_count', Device.formatEnum(WASHER_RINSE_COUNT, block[29]))
@@ -1081,8 +1083,6 @@ export default class Device extends AABBDevice {
         //
         this.publishProperty('shared/init_lcd', Device.formatEnum(INIT_LCD_THEMES, block[48]))
 
-        const washerStateName = Device.formatEnum(WASHER_STATES, washerState)
-        const washerPowerOff = WASHER_POWER_OFF_STATES.has(washerStateName)
         this.publishProperty('washer/power', washerPowerOff ? 'OFF' : 'ON')
         this.publishProperty('washer/state', washerPowerOff ? 'POWEROFF' : washerStateName)
         this.publishProperty('washer/error', Device.formatEnum(WASHER_ERRORS, block[21]))
@@ -1103,14 +1103,14 @@ export default class Device extends AABBDevice {
         this.publishProperty('dryer/course', Device.formatEnum(DRYER_COURSES, dryer[5]))
         this.publishProperty('dryer/reserve_time', dryer.readUInt16BE(7))
         const dryerState = dryer[13]
+        const dryerStateName = Device.formatEnum(DRYER_STATES, dryerState)
+        const dryerPowerOff = DRYER_POWER_OFF_STATES.has(dryerStateName)
         this.publishProperty(
             'dryer/remaining_time',
             this.remainingTimestamp('dryer', dryer.readUInt16BE(9), dryerState, DRYER_STATES),
         )
-        this.publishProperty('dryer/initial_time', dryer.readUInt16BE(11))
+        this.publishProperty('dryer/initial_time', dryerPowerOff ? '' : dryer.readUInt16BE(11))
 
-        const dryerStateName = Device.formatEnum(DRYER_STATES, dryerState)
-        const dryerPowerOff = DRYER_POWER_OFF_STATES.has(dryerStateName)
         this.publishProperty('dryer/power', dryerPowerOff ? 'OFF' : 'ON')
         this.publishProperty('dryer/state', dryerPowerOff ? 'POWEROFF' : dryerStateName)
         this.publishProperty('dryer/error', Device.formatEnum(DRYER_ERRORS, dryer[15]))

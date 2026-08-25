@@ -114,7 +114,7 @@ describe('H01', () => {
         assert.equal(properties.state, 'OFF')
         assert.equal(properties.power, 'OFF')
         assert.equal(properties.course, '꺼짐')
-        assert.equal(properties.initial_time, 99)
+        assert.equal(properties.initial_time, '')
         assert.equal(properties.remaining_time, '')
         assert.equal(properties.delay_start, 0)
         assert.equal(properties.door, 'OPEN')

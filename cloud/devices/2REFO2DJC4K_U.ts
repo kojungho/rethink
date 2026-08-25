@@ -5,6 +5,30 @@ import { type Metadata } from '../thinq'
 import { allowExtendedType } from '@/util/casting'
 import AABBDevice from './aabb_device'
 import { freezerRange, fridgeRange } from './fridge_common'
+import { commandValueTemplate, displayOptions, displayValueTemplate } from './display_localization'
+
+const DISPLAY_LABELS = {
+    OFF: '꺼짐',
+    ON: '켜짐',
+    AUTO: '자동',
+    POWER: '파워',
+    REPLACE_FILTER: '필터 교체',
+    SMART_CARE_DIAGNOSIS: '스마트케어/진단',
+    UNSUPPORTED: '지원 안 함',
+    THREE_PIECES: '3개 제빙',
+    SIX_PIECES: '6개 제빙',
+    NONE: '선택 안 함',
+    CRUSHED_ICE: '조각 얼음',
+    WATER: '정수',
+    CUBED_ICE: '각얼음',
+    DISABLED: '사용 안 함',
+    UNKNOWN: '알 수 없음',
+    SUNSET_TO_SUNRISE: '일몰에서 일출까지',
+    SCHEDULED: '시간 설정',
+}
+
+const CRAFT_ICE_MODES = ['OFF', 'THREE_PIECES', 'SIX_PIECES']
+const DISPENSER_MODES = ['NONE', 'CRUSHED_ICE', 'WATER', 'CUBED_ICE']
 
 export default class Device extends AABBDevice {
     readonly deviceConfig: DeviceDiscovery
@@ -145,6 +169,7 @@ export default class Device extends AABBDevice {
                         state_topic: '$this/pure_n_fresh',
                         name: '퓨어 프레쉬 상태',
                         entity_category: 'diagnostic',
+                        value_template: displayValueTemplate(DISPLAY_LABELS),
                     },
                     display_lock_raw: {
                         platform: 'sensor',
@@ -176,6 +201,7 @@ export default class Device extends AABBDevice {
                         unique_id: '$deviceid-smart_care',
                         state_topic: '$this/smart_care',
                         name: '스마트케어+',
+                        value_template: displayValueTemplate(DISPLAY_LABELS),
                     },
                     smart_care_control: {
                         platform: 'switch',
@@ -194,6 +220,7 @@ export default class Device extends AABBDevice {
                         unique_id: '$deviceid-night_glare_prevention',
                         state_topic: '$this/night_glare_prevention',
                         name: '야간 눈부심 방지',
+                        value_template: displayValueTemplate(DISPLAY_LABELS),
                     },
                     night_quiet: {
                         platform: 'sensor',
@@ -201,6 +228,7 @@ export default class Device extends AABBDevice {
                         unique_id: '$deviceid-night_quiet',
                         state_topic: '$this/night_quiet',
                         name: '야간 조용히',
+                        value_template: displayValueTemplate(DISPLAY_LABELS),
                     },
                     craft_ice: {
                         platform: 'select',
@@ -209,7 +237,9 @@ export default class Device extends AABBDevice {
                         unique_id: '$deviceid-craft_ice',
                         state_topic: '$this/craft_ice',
                         command_topic: '$this/craft_ice/set',
-                        options: ['꺼짐', '3개 제빙', '6개 제빙'],
+                        options: displayOptions(CRAFT_ICE_MODES, DISPLAY_LABELS),
+                        value_template: displayValueTemplate(DISPLAY_LABELS),
+                        command_template: commandValueTemplate(DISPLAY_LABELS),
                         entity_category: 'config',
                     },
                     dispenser_mode: {
@@ -219,7 +249,9 @@ export default class Device extends AABBDevice {
                         unique_id: '$deviceid-dispenser_mode',
                         state_topic: '$this/dispenser_mode',
                         command_topic: '$this/dispenser_mode/set',
-                        options: ['선택 안 함', '조각 얼음', '정수', '각얼음'],
+                        options: displayOptions(DISPENSER_MODES, DISPLAY_LABELS),
+                        value_template: displayValueTemplate(DISPLAY_LABELS),
+                        command_template: commandValueTemplate(DISPLAY_LABELS),
                         entity_category: 'config',
                     },
                     dispense_volume: {
@@ -284,22 +316,20 @@ export default class Device extends AABBDevice {
 
         // 이 모델에서 쓰기 동작이 확인되지 않은 필드는 읽기 전용으로 노출합니다.
         const pureNFreshModes: Record<number, string> = {
-            1: '꺼짐',
-            2: '자동',
-            3: '파워',
-            4: '필터 교체',
-            7: '스마트케어/진단',
-            0xff: '지원 안 함',
+            1: 'OFF',
+            2: 'AUTO',
+            3: 'POWER',
+            4: 'REPLACE_FILTER',
+            7: 'SMART_CARE_DIAGNOSIS',
+            0xff: 'UNSUPPORTED',
         }
-        const pureNFresh = pureNFreshModes[curStatus[4]] ?? `원시값 ${curStatus[4]}`
+        const pureNFresh = pureNFreshModes[curStatus[4]] ?? `RAW_${curStatus[4]}`
 
         // 3. 크래프트 아이스 모드 (0=끔, 1=3 ICE, 2=6 ICE)
-        const craftIceModes = ['꺼짐', '3개 제빙', '6개 제빙']
-        const craftIceMode = craftIceModes[curStatus[25]] || '꺼짐'
+        const craftIceMode = CRAFT_ICE_MODES[curStatus[25]] || 'OFF'
 
         // 4. 정수기 출수 모드 (0=선택안함/마지막, 1=조각얼음, 2=정수, 3=각얼음) - 66번 오프셋 교정완료
-        const dispenserModes = ['선택 안 함', '조각 얼음', '정수', '각얼음']
-        const dispenserMode = dispenserModes[curStatus[66]] || '선택 안 함'
+        const dispenserMode = DISPENSER_MODES[curStatus[66]] || 'NONE'
 
         // 정량 출수 설정은 10 mL 단위다. 수동 출수 중에는 이 필드가
         // 실시간으로 변하지 않으므로 누적/실시간 출수량으로 취급하지 않는다.
@@ -356,10 +386,10 @@ export default class Device extends AABBDevice {
     }
 
     private publishAdvancedSettings(status: Buffer) {
-        const glareModes = ['사용 안 함', '알 수 없음', '일몰에서 일출까지', '시간 설정']
-        const glareMode = glareModes[status[30]] || '알 수 없음'
-        const quietMode = status[31] === 3 ? '시간 설정' : '사용 안 함'
-        this.publishProperty('smart_care', status[17] === 1 ? '켜짐' : '꺼짐')
+        const glareModes = ['DISABLED', 'UNKNOWN', 'SUNSET_TO_SUNRISE', 'SCHEDULED']
+        const glareMode = glareModes[status[30]] || 'UNKNOWN'
+        const quietMode = status[31] === 3 ? 'SCHEDULED' : 'DISABLED'
+        this.publishProperty('smart_care', status[17] === 1 ? 'ON' : 'OFF')
         this.publishProperty('smart_care_control', status[17] === 1 ? 'ON' : 'OFF')
         this.publishProperty('night_glare_prevention', glareMode)
         this.publishProperty('night_quiet', quietMode)
@@ -387,11 +417,11 @@ export default class Device extends AABBDevice {
             baseMessage[2 + 17] = mqttValue === 'ON' ? 1 : 0
             this.send(baseMessage)
         } else if (prop === 'craft_ice') {
-            const map: Record<string, number> = { 꺼짐: 0, '3개 제빙': 1, '6개 제빙': 2 }
+            const map: Record<string, number> = { OFF: 0, THREE_PIECES: 1, SIX_PIECES: 2 }
             baseMessage[2 + 25] = map[mqttValue] ?? 0
             this.send(baseMessage)
         } else if (prop === 'dispenser_mode') {
-            const map: Record<string, number> = { '선택 안 함': 0, '조각 얼음': 1, 정수: 2, 각얼음: 3 }
+            const map: Record<string, number> = { NONE: 0, CRUSHED_ICE: 1, WATER: 2, CUBED_ICE: 3 }
             baseMessage[2 + 66] = map[mqttValue] ?? 0 // 이전 코드 65에서 66으로 수정됨
             this.send(baseMessage)
         } else if (prop === 'button_sound') {

@@ -146,12 +146,12 @@ describe(MODEL_ID, () => {
 
         assert.equal(ha.getProperty(DEVICE_ID, 'climate', 'current_temperature'), 20.5) // 0x29 / 2
         assert.equal(ha.getProperty(DEVICE_ID, 'climate', 'temperature_state'), 19) // 0x26 / 2
-        assert.equal(ha.getProperty(DEVICE_ID, 'climate', 'fan_mode_state'), '2단') // 0x1FA=3
+        assert.equal(ha.getProperty(DEVICE_ID, 'climate', 'fan_mode_state'), 'FAN_2') // 0x1FA=3
         // The model's official profile is cooling-only, so the generic heat
         // value in this legacy sample is intentionally not exposed as a mode.
         assert.equal(ha.getProperty(DEVICE_ID, 'climate', 'mode_state'), undefined)
-        assert.equal(ha.getProperty(DEVICE_ID, 'climate', 'swing_mode_state'), '정지') // 0x321=0
-        assert.equal(ha.getProperty(DEVICE_ID, 'climate', 'swing_horizontal_mode_state'), '정지') // 0x322=0
+        assert.equal(ha.getProperty(DEVICE_ID, 'climate', 'swing_mode_state'), 'STOP') // 0x321=0
+        assert.equal(ha.getProperty(DEVICE_ID, 'climate', 'swing_horizontal_mode_state'), 'STOP') // 0x322=0
         assert.equal(ha.getProperty(DEVICE_ID, 'ai_dry_power', 'state'), 'OFF') // 0x20E=0
         assert.equal(ha.getProperty(DEVICE_ID, 'sleeptimer', 'state'), 0) // 0x21A=0
         assert.equal(ha.getProperty(DEVICE_ID, 'starttimer', 'state'), 0) // 0x21C=0
@@ -184,7 +184,7 @@ describe(MODEL_ID, () => {
         assert.equal(ha.getProperty(DEVICE_ID, 'pm1', 'state'), 8)
         assert.equal(ha.getProperty(DEVICE_ID, 'pm2_5', 'state'), 8)
         assert.equal(ha.getProperty(DEVICE_ID, 'pm10', 'state'), 8)
-        assert.equal(ha.getProperty(DEVICE_ID, 'air_quality', 'state'), '좋음')
+        assert.equal(ha.getProperty(DEVICE_ID, 'air_quality', 'state'), 'AIR_QUALITY_GOOD')
         assert.equal(ha.devices[DEVICE_ID].properties.filter_remaining_time, 780)
         assert.equal(ha.devices[DEVICE_ID].properties.filter_used_time, 276)
         assert.equal(ha.devices[DEVICE_ID].properties.filter_remaining, 74)
@@ -210,16 +210,16 @@ describe(MODEL_ID, () => {
         const { thinq, dev, ha } = buildReadyDevice(t)
 
         dev.processKeyValue(0x1fa, 16)
-        assert.equal(ha.getProperty(DEVICE_ID, 'climate', 'fan_mode_state'), '0단')
+        assert.equal(ha.getProperty(DEVICE_ID, 'climate', 'fan_mode_state'), 'FAN_0')
         dev.processKeyValue(0x1fa, 8)
-        assert.equal(ha.getProperty(DEVICE_ID, 'climate', 'fan_mode_state'), '자연풍')
+        assert.equal(ha.getProperty(DEVICE_ID, 'climate', 'fan_mode_state'), 'FAN_NATURAL')
 
         thinq.resetRecorder()
-        ha.setProperty(DEVICE_ID, 'climate', 'fan_mode_command', '0단')
+        ha.setProperty(DEVICE_ID, 'climate', 'fan_mode_command', 'FAN_0')
         assert.match(hex(thinq.outbox[0]), /7E9010/i)
 
         thinq.resetRecorder()
-        ha.setProperty(DEVICE_ID, 'climate', 'fan_mode_command', '자연풍')
+        ha.setProperty(DEVICE_ID, 'climate', 'fan_mode_command', 'FAN_NATURAL')
         assert.match(hex(thinq.outbox[0]), /7E88/i)
 
         dev.drop()

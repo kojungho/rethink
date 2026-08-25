@@ -1,9 +1,10 @@
-import RACDevice from './RAC_056905_WW'
+import RACDevice, { AC_DISPLAY_LABELS } from './RAC_056905_WW'
 import { Device as Thinq2Device } from '../thinq2/device'
 import { DeviceDiscovery, type Connection } from '../homeassistant'
 import { type Metadata } from '../thinq'
 import * as TLV from '@/util/tlv'
 import HADevice from './base'
+import { displayOptions } from './display_localization'
 
 const fields = {
     power: 0x1f7,
@@ -100,14 +101,28 @@ export default class Device extends RACDevice {
             'swing_horizontal_mode_command_topic',
         ])
             delete climate[key]
-        climate.swing_modes = ['집중', '분리', '와이드', '좌', '우']
-        climate.fan_modes = ['1단', '2단', '3단', '4단', '5단']
+        climate.swing_modes = ['AIRFLOW_FOCUS', 'AIRFLOW_SPLIT', 'AIRFLOW_WIDE', 'AIRFLOW_LEFT', 'AIRFLOW_RIGHT']
+        climate.fan_modes = ['FAN_1', 'FAN_2', 'FAN_3', 'FAN_4', 'FAN_5']
         this.addField(config, {
             id: 0x2a3,
             name: 'swing_mode',
             comp: 'climate',
-            read_xform: (raw) => (({ 1: '집중', 2: '와이드', 3: '좌', 4: '우', 5: '분리' }) as Record<number, string>)[raw],
-            write_xform: (val) => (({ 집중: 1, 분리: 5, 와이드: 2, 좌: 3, 우: 4 }) as Record<string, number>)[val],
+            read_xform: (raw) =>
+                (({
+                    1: 'AIRFLOW_FOCUS',
+                    2: 'AIRFLOW_WIDE',
+                    3: 'AIRFLOW_LEFT',
+                    4: 'AIRFLOW_RIGHT',
+                    5: 'AIRFLOW_SPLIT',
+                }) as Record<number, string>)[raw],
+            write_xform: (val) =>
+                (({
+                    AIRFLOW_FOCUS: 1,
+                    AIRFLOW_SPLIT: 5,
+                    AIRFLOW_WIDE: 2,
+                    AIRFLOW_LEFT: 3,
+                    AIRFLOW_RIGHT: 4,
+                }) as Record<string, number>)[val],
         })
 
         const sensors = {
@@ -154,17 +169,17 @@ export default class Device extends RACDevice {
             unique_id: '$deviceid-temperature-step',
             name: '온도 조절 단위',
             icon: 'mdi:thermometer-lines',
-            options: ['0.5℃', '1℃'],
+            options: ['HALF_DEGREE', 'ONE_DEGREE'],
             entity_category: 'config',
         } as unknown as DeviceDiscovery['components'][string]
         this.addField(config, {
             id: 0x1fb,
             name: '',
             comp: 'temperature_step',
-            read_xform: (raw) => (raw === 1 ? '1℃' : '0.5℃'),
-            write_xform: (val) => (val === '1℃' ? 1 : 0),
+            read_xform: (raw) => (raw === 1 ? 'ONE_DEGREE' : 'HALF_DEGREE'),
+            write_xform: (val) => (val === 'ONE_DEGREE' ? 1 : 0),
             read_callback: (val) => {
-                this.updateTemperatureStep(val === '1℃' ? 1 : 0.5)
+                this.updateTemperatureStep(val === 'ONE_DEGREE' ? 1 : 0.5)
                 return true
             },
         })
@@ -224,12 +239,12 @@ export default class Device extends RACDevice {
             name: 'AI 건조 풍량',
             icon: 'mdi:fan',
             entity_category: 'config',
-            options: ['꺼짐', '1단', '2단', '3단', '4단', '5단'],
+            options: ['AI_DRY_OFF', 'FAN_1', 'FAN_2', 'FAN_3', 'FAN_4', 'FAN_5'],
         } as unknown as DeviceDiscovery['components'][string]
         this.addField(config, {
             name: '',
             comp: 'ai_dry',
-            write_xform: (val) => (val === '꺼짐' ? 0 : Number(val.replace('단', '')) + 1),
+            write_xform: (val) => (val === 'AI_DRY_OFF' ? 0 : Number(val.replace('FAN_', '')) + 1),
             write_callback: (val) => {
                 if (val === 0) {
                     this.raw_clip_state[0x20e] = 0
@@ -263,14 +278,14 @@ export default class Device extends RACDevice {
             name: '공기질 센서',
             icon: 'mdi:air-filter',
             entity_category: 'config',
-            options: ['운전 중에만', '항상'],
+            options: ['ON_WORKING', 'ALWAYS'],
         } as unknown as DeviceDiscovery['components'][string]
         this.addField(config, {
             id: 0x337,
             name: '',
             comp: 'air_quality_sensor',
-            read_xform: (raw) => (raw ? '항상' : '운전 중에만'),
-            write_xform: (val) => (val === '항상' ? 1 : 0),
+            read_xform: (raw) => (raw ? 'ALWAYS' : 'ON_WORKING'),
+            write_xform: (val) => (val === 'ALWAYS' ? 1 : 0),
             write_callback: (val) => {
                 this.sendPrivCommand(0x0c, 0x01, Buffer.from([0, 0, 0, val]))
                 return false
@@ -350,11 +365,11 @@ export default class Device extends RACDevice {
                 write_xform: (val) => values[options.indexOf(val)],
             })
         }
-        addSelect(0x2a8, 'one_side_airflow', '한쪽 바람', ['해제', '왼쪽', '오른쪽'], [0, 1, 2])
-        addSelect(0x3aa, 'lighting_mode', '라이팅 모드', ['종합청정도', '운전상태'], [1, 10])
+        addSelect(0x2a8, 'one_side_airflow', '한쪽 바람', ['RELEASE', 'LEFT', 'RIGHT'], [0, 1, 2])
+        addSelect(0x3aa, 'lighting_mode', '라이팅 모드', ['OVERALL_AIR_QUALITY', 'OPERATION_STATUS'], [1, 10])
         addSelect(0x3ac, 'lighting_brightness', '라이팅 밝기', ['20%', '40%', '60%', '80%', '100%'], [20, 40, 60, 80, 100])
-        addSelect(0x21f, 'display_light', '제품 화면 밝기', ['꺼짐', '20%', '40%', '60%', '80%', '100%'], [100, 120, 140, 160, 180, 200])
-        addSelect(0x3a0, 'button_sound', '제품 소리 크기', ['꺼짐', '20%', '40%', '60%', '80%', '100%'], [100, 120, 140, 160, 180, 200])
+        addSelect(0x21f, 'display_light', '제품 화면 밝기', ['OFF', '20%', '40%', '60%', '80%', '100%'], [100, 120, 140, 160, 180, 200])
+        addSelect(0x3a0, 'button_sound', '제품 소리 크기', ['OFF', '20%', '40%', '60%', '80%', '100%'], [100, 120, 140, 160, 180, 200])
     }
 
     processData(buf: Buffer) {
@@ -391,9 +406,13 @@ export default class Device extends RACDevice {
         this.HA.publishProperty(
             this.id,
             'air_quality',
-            ({ 0: '알 수 없음', 1: '좋음', 2: '보통', 3: '나쁨', 4: '매우 나쁨' } as Record<number, string>)[
-                buf[68]
-            ] ?? '알 수 없음',
+            ({
+                0: 'AIR_QUALITY_UNKNOWN',
+                1: 'AIR_QUALITY_GOOD',
+                2: 'AIR_QUALITY_NORMAL',
+                3: 'AIR_QUALITY_BAD',
+                4: 'AIR_QUALITY_VERY_BAD',
+            } as Record<number, string>)[buf[68]] ?? 'AIR_QUALITY_UNKNOWN',
         )
         this.HA.publishProperty(this.id, 'filter_remaining', buf[286])
         this.updatePacClimateAction(buf[160] !== 0)
@@ -432,14 +451,14 @@ export default class Device extends RACDevice {
         if (id === 0x20e || id === 0x1f2) {
             this.raw_clip_state[id] = value
             const level = this.raw_clip_state[0x1f2]
-            const state = this.raw_clip_state[0x20e] === 255 && level >= 2 && level <= 6 ? `${level - 1}단` : '꺼짐'
+            const state = this.raw_clip_state[0x20e] === 255 && level >= 2 && level <= 6 ? `FAN_${level - 1}` : 'AI_DRY_OFF'
             this.HA.publishProperty(this.id, 'ai_dry-', state)
             return
         }
         if (id === fields.mode && value === 5) {
             this.raw_clip_state[id] = value
             this.HA.publishProperty(this.id, 'climate-mode', 'fan_only')
-            this.HA.publishProperty(this.id, 'climate-preset_mode', '공기 청정')
+            this.HA.publishProperty(this.id, 'climate-preset_mode', 'AIR_PURIFY')
             this.updateModeAvailability()
             this.updateFanModeOptions()
             return
@@ -517,7 +536,7 @@ export default class Device extends RACDevice {
             unique_id: '$deviceid-standby_time_format',
             name: '대기 화면 시간 형식',
             icon: 'mdi:clock-outline',
-            options: ['12시간제', '24시간제'],
+            options: ['HOUR_12', 'HOUR_24'],
             entity_category: 'config',
             availability: this.modeAvailability('standby_clock_availability'),
             availability_mode: 'all',
@@ -526,8 +545,8 @@ export default class Device extends RACDevice {
             id: fields.standbyTimeFormat,
             name: '',
             comp: 'standby_time_format',
-            read_xform: (raw) => (raw ? '24시간제' : '12시간제'),
-            write_xform: (value) => (value === '24시간제' ? 1 : 0),
+            read_xform: (raw) => (raw ? 'HOUR_24' : 'HOUR_12'),
+            write_xform: (value) => (value === 'HOUR_24' ? 1 : 0),
             read_callback: () => {
                 this.updateStandbyAvailability()
                 return true
@@ -535,7 +554,7 @@ export default class Device extends RACDevice {
             write_callback: (value) => this.writeStandbySetting(fields.standbyTimeFormat, value),
         })
 
-        const intervalOptions = ['10초', '30초', '1분', '3분', '5분', '10분']
+        const intervalOptions = ['SEC_10', 'SEC_30', 'MIN_1', 'MIN_3', 'MIN_5', 'MIN_10']
         const intervalValues = [10, 30, 60, 180, 300, 600]
         config.components.standby_switch_interval = {
             platform: 'select',
@@ -606,12 +625,15 @@ export default class Device extends RACDevice {
         if (!this.config) return
 
         const climate = this.config.components.climate as unknown as Record<string, unknown>
-        climate.fan_modes = profile === 'dry' ? ['자동'] : ['1단', '2단', '3단', '4단', '5단']
+        climate.fan_modes = displayOptions(
+            profile === 'dry' ? ['FAN_AUTO'] : ['FAN_1', 'FAN_2', 'FAN_3', 'FAN_4', 'FAN_5'],
+            AC_DISPLAY_LABELS,
+        )
         this.publishConfig()
     }
 
     setProperty(prop: string, value: string) {
-        if (prop === 'climate-preset_mode' && value === '공기 청정') {
+        if (prop === 'climate-preset_mode' && value === 'AIR_PURIFY') {
             this.raw_clip_state[fields.power] = 1
             this.raw_clip_state[fields.mode] = 5
             this.send(

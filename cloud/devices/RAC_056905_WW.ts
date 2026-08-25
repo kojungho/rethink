@@ -7,6 +7,72 @@ import * as TLV from '@/util/tlv'
 import { racAirTemp, racPipeTemp } from '@/util/ac_tables'
 import log from '@/util/logging'
 import HADevice from './base'
+import {
+    commandValueTemplate,
+    displayOptions,
+    displayValueTemplate,
+    type DisplayLabels,
+} from './display_localization'
+
+export const AC_DISPLAY_LABELS: DisplayLabels = {
+    AIR_PURIFY: '공기 청정',
+    FAN_0: '0단',
+    FAN_1: '1단',
+    FAN_2: '2단',
+    FAN_3: '3단',
+    FAN_4: '4단',
+    FAN_5: '5단',
+    FAN_AUTO: '자동',
+    FAN_NATURAL: '자연풍',
+    VERTICAL_TOP_1: '1(상)',
+    POSITION_2: '2',
+    POSITION_3: '3',
+    POSITION_4: '4',
+    POSITION_5: '5',
+    VERTICAL_BOTTOM_6: '6(하)',
+    VERTICAL_TOP_FOCUS: '상단집중',
+    VERTICAL_MIDDLE_FOCUS: '중간집중',
+    VERTICAL_BOTTOM_FOCUS: '하단집중',
+    VERTICAL_SWING: '상하회전',
+    HORIZONTAL_LEFT_1: '1(좌)',
+    HORIZONTAL_RIGHT_5: '5(우)',
+    HORIZONTAL_LEFT_MIDDLE_SWING: '좌중회전',
+    HORIZONTAL_MIDDLE_RIGHT_SWING: '중우회전',
+    HORIZONTAL_SWING: '좌우회전',
+    STOP: '정지',
+    AIR_QUALITY_UNKNOWN: '알 수 없음',
+    AIR_QUALITY_GOOD: '좋음',
+    AIR_QUALITY_NORMAL: '보통',
+    AIR_QUALITY_BAD: '나쁨',
+    AIR_QUALITY_VERY_BAD: '매우 나쁨',
+    AI_DRY_LOW: '약풍',
+    AI_DRY_MEDIUM: '중풍',
+    AI_DRY_HIGH: '강풍',
+    AI_DRY_OFF: '꺼짐',
+    AIRFLOW_FOCUS: '집중',
+    AIRFLOW_SPLIT: '분리',
+    AIRFLOW_WIDE: '와이드',
+    AIRFLOW_LEFT: '좌',
+    AIRFLOW_RIGHT: '우',
+    LEFT: '왼쪽',
+    RIGHT: '오른쪽',
+    RELEASE: '해제',
+    OVERALL_AIR_QUALITY: '종합청정도',
+    OPERATION_STATUS: '운전상태',
+    ON_WORKING: '운전 중에만',
+    ALWAYS: '항상',
+    HALF_DEGREE: '0.5℃',
+    ONE_DEGREE: '1℃',
+    HOUR_12: '12시간제',
+    HOUR_24: '24시간제',
+    SEC_10: '10초',
+    SEC_30: '30초',
+    MIN_1: '1분',
+    MIN_3: '3분',
+    MIN_5: '5분',
+    MIN_10: '10분',
+    OFF: '꺼짐',
+}
 
 type PowerModeChangeHook = () => void
 type CheckMode = (arg: number) => boolean
@@ -289,11 +355,11 @@ export default class Device extends TLVDevice {
                     // The appliance reports air purification as mode 46.  It
                     // is represented as a preset because HA climate modes are
                     // limited to standard HVAC modes.
-                    preset_modes: ['공기 청정'],
+                    preset_modes: ['AIR_PURIFY'],
                     preset_mode_state_topic: '$this/climate-preset_mode',
                     preset_mode_command_topic: '$this/climate-preset_mode/set',
                     /* TODO: get from 0x2c2 */
-                    fan_modes: ['0단', '1단', '2단', '3단', '4단', '5단', '자연풍'],
+                    fan_modes: ['FAN_0', 'FAN_1', 'FAN_2', 'FAN_3', 'FAN_4', 'FAN_5', 'FAN_NATURAL'],
                     /* TODO: get allowed op modes from 0x2c1 */
                 } satisfies ClimateComponent,
             },
@@ -349,7 +415,7 @@ export default class Device extends TLVDevice {
                 return modes2ha[raw]
             },
             read_callback: (val) => {
-                this.HA.publishProperty(this.id, 'climate-preset_mode', this.getModeTLV() === 46 ? '공기 청정' : 'none')
+                this.HA.publishProperty(this.id, 'climate-preset_mode', this.getModeTLV() === 46 ? 'AIR_PURIFY' : 'none')
                 if (typeof val !== 'string') return true
                 if (this.modePrev !== val) for (const hook of this.modeChangeHooks) hook()
                 this.modePrev = val
@@ -372,7 +438,7 @@ export default class Device extends TLVDevice {
         this.fields_by_ha['climate-preset_mode'] = {
             name: 'preset_mode',
             comp: 'climate',
-            write_xform: (val) => (val === '공기 청정' ? 46 : null),
+            write_xform: (val) => (val === 'AIR_PURIFY' ? 46 : null),
             write_callback: (val) => {
                 this.raw_clip_state[0x1f9] = val
                 this.send([1, 1, 2, 1, 1], [{ t: 0x1f9, v: val }])
@@ -386,25 +452,25 @@ export default class Device extends TLVDevice {
             comp: 'climate',
             read_xform: (raw) => {
                 const modes2ha: Record<number, string> = {
-                    2: '1단',
-                    3: '2단',
-                    4: '3단',
-                    5: '4단',
-                    6: '5단',
-                    8: '자연풍',
-                    16: '0단',
+                    2: 'FAN_1',
+                    3: 'FAN_2',
+                    4: 'FAN_3',
+                    5: 'FAN_4',
+                    6: 'FAN_5',
+                    8: 'FAN_NATURAL',
+                    16: 'FAN_0',
                 }
                 return modes2ha[raw]
             },
             write_xform: (val) => {
                 const modes2clip: Record<string, number> = {
-                    '1단': 2,
-                    '2단': 3,
-                    '3단': 4,
-                    '4단': 5,
-                    '5단': 6,
-                    자연풍: 8,
-                    '0단': 16,
+                    FAN_1: 2,
+                    FAN_2: 3,
+                    FAN_3: 4,
+                    FAN_4: 5,
+                    FAN_5: 6,
+                    FAN_NATURAL: 8,
+                    FAN_0: 16,
                 }
                 return modes2clip[val]
             },
@@ -422,43 +488,43 @@ export default class Device extends TLVDevice {
 
         if (this.raw_clip_state[0x2cd] & 4) {
             config['components']['climate']['swing_modes'] = [
-                '1(상)',
-                '2',
-                '3',
-                '4',
-                '5',
-                '6(하)',
-                '상단집중',
-                '중간집중',
-                '하단집중',
-                '상하회전',
-                '정지',
+                'VERTICAL_TOP_1',
+                'POSITION_2',
+                'POSITION_3',
+                'POSITION_4',
+                'POSITION_5',
+                'VERTICAL_BOTTOM_6',
+                'VERTICAL_TOP_FOCUS',
+                'VERTICAL_MIDDLE_FOCUS',
+                'VERTICAL_BOTTOM_FOCUS',
+                'VERTICAL_SWING',
+                'STOP',
             ]
             this.addField(config, {
                 id: 0x321,
                 name: 'swing_mode',
                 comp: 'climate',
                 read_xform: (raw) => {
-                    const modes2ha = ['정지', '1(상)', '2', '3', '4', '5', '6(하)']
-                    modes2ha[14] = '상단집중'
-                    modes2ha[25] = '중간집중'
-                    modes2ha[36] = '하단집중'
-                    modes2ha[100] = '상하회전'
+                    const modes2ha = ['STOP', 'VERTICAL_TOP_1', 'POSITION_2', 'POSITION_3', 'POSITION_4', 'POSITION_5', 'VERTICAL_BOTTOM_6']
+                    modes2ha[14] = 'VERTICAL_TOP_FOCUS'
+                    modes2ha[25] = 'VERTICAL_MIDDLE_FOCUS'
+                    modes2ha[36] = 'VERTICAL_BOTTOM_FOCUS'
+                    modes2ha[100] = 'VERTICAL_SWING'
                     return modes2ha[raw]
                 },
                 write_xform: (val) => {
                     const modes2clip: Record<string, number> = {
-                        '정지': 0,
-                        '1(상)': 1,
-                        '2': 2,
-                        '3': 3,
-                        '4': 4,
-                        '5': 5,
-                        '6(하)': 6,
-                        '상단집중': 14,
-                        '중간집중': 25,
-                        '하단집중': 36,
-                        '상하회전': 100,
+                        STOP: 0,
+                        VERTICAL_TOP_1: 1,
+                        POSITION_2: 2,
+                        POSITION_3: 3,
+                        POSITION_4: 4,
+                        POSITION_5: 5,
+                        VERTICAL_BOTTOM_6: 6,
+                        VERTICAL_TOP_FOCUS: 14,
+                        VERTICAL_MIDDLE_FOCUS: 25,
+                        VERTICAL_BOTTOM_FOCUS: 36,
+                        VERTICAL_SWING: 100,
                     }
                     return modes2clip[val]
                 },
@@ -467,38 +533,38 @@ export default class Device extends TLVDevice {
 
         if (this.raw_clip_state[0x2cd] & 8) {
             config['components']['climate']['swing_horizontal_modes'] = [
-                '1(좌)',
-                '2',
-                '3',
-                '4',
-                '5(우)',
-                '좌중회전',
-                '중우회전',
-                '좌우회전',
-                '정지',
+                'HORIZONTAL_LEFT_1',
+                'POSITION_2',
+                'POSITION_3',
+                'POSITION_4',
+                'HORIZONTAL_RIGHT_5',
+                'HORIZONTAL_LEFT_MIDDLE_SWING',
+                'HORIZONTAL_MIDDLE_RIGHT_SWING',
+                'HORIZONTAL_SWING',
+                'STOP',
             ]
             this.addField(config, {
                 id: 0x322,
                 name: 'swing_horizontal_mode',
                 comp: 'climate',
                 read_xform: (raw) => {
-                    const modes2ha = ['정지', '1(좌)', '2', '3', '4', '5(우)']
-                    modes2ha[13] = '좌중회전'
-                    modes2ha[35] = '중우회전'
-                    modes2ha[100] = '좌우회전'
+                    const modes2ha = ['STOP', 'HORIZONTAL_LEFT_1', 'POSITION_2', 'POSITION_3', 'POSITION_4', 'HORIZONTAL_RIGHT_5']
+                    modes2ha[13] = 'HORIZONTAL_LEFT_MIDDLE_SWING'
+                    modes2ha[35] = 'HORIZONTAL_MIDDLE_RIGHT_SWING'
+                    modes2ha[100] = 'HORIZONTAL_SWING'
                     return modes2ha[raw]
                 },
                 write_xform: (val) => {
                     const modes2clip: Record<string, number> = {
-                        '정지': 0,
-                        '1(좌)': 1,
-                        '2': 2,
-                        '3': 3,
-                        '4': 4,
-                        '5(우)': 5,
-                        '좌중회전': 13,
-                        '중우회전': 35,
-                        '좌우회전': 100,
+                        STOP: 0,
+                        HORIZONTAL_LEFT_1: 1,
+                        POSITION_2: 2,
+                        POSITION_3: 3,
+                        POSITION_4: 4,
+                        HORIZONTAL_RIGHT_5: 5,
+                        HORIZONTAL_LEFT_MIDDLE_SWING: 13,
+                        HORIZONTAL_MIDDLE_RIGHT_SWING: 35,
+                        HORIZONTAL_SWING: 100,
                     }
                     return modes2clip[val]
                 },
@@ -531,7 +597,13 @@ export default class Device extends TLVDevice {
             'mdi:air-filter',
             { entity_category: undefined },
             (raw) =>
-                ({ 0: '알 수 없음', 1: '좋음', 2: '보통', 3: '나쁨', 4: '매우 나쁨' })[raw] as
+                ({
+                    0: 'AIR_QUALITY_UNKNOWN',
+                    1: 'AIR_QUALITY_GOOD',
+                    2: 'AIR_QUALITY_NORMAL',
+                    3: 'AIR_QUALITY_BAD',
+                    4: 'AIR_QUALITY_VERY_BAD',
+                })[raw] as
                     | string
                     | undefined,
         )
@@ -784,15 +856,17 @@ export default class Device extends TLVDevice {
             name: 'AI 건조 풍량',
             icon: 'mdi:fan',
             entity_category: 'config',
-            options: ['약풍', '중풍', '강풍'],
+            options: ['AI_DRY_LOW', 'AI_DRY_MEDIUM', 'AI_DRY_HIGH'],
         }
         config['components']['ai_dry'] = aiDry
         this.addField(config, {
             id: 0x1f2,
             name: '',
             comp: 'ai_dry',
-            read_xform: (raw) => ({ 2: '약풍', 4: '중풍', 6: '강풍' } as Record<number, string>)[raw],
-            write_xform: (val) => ({ '약풍': 2, '중풍': 4, '강풍': 6 } as Record<string, number>)[val],
+            read_xform: (raw) =>
+                ({ 2: 'AI_DRY_LOW', 4: 'AI_DRY_MEDIUM', 6: 'AI_DRY_HIGH' } as Record<number, string>)[raw],
+            write_xform: (val) =>
+                ({ AI_DRY_LOW: 2, AI_DRY_MEDIUM: 4, AI_DRY_HIGH: 6 } as Record<string, number>)[val],
         })
 
         if (this.getIDUActionRunningTLVNum() != null) {
@@ -909,6 +983,7 @@ export default class Device extends TLVDevice {
         }
 
         this.extendConfig(config)
+        this.localizeVisibleValues(config)
 
         // These were separate select entities in the previous release.  An
         // empty discovery payload removes them before Climate receives the
@@ -944,6 +1019,36 @@ export default class Device extends TLVDevice {
 
     protected extendConfig(config: DeviceDiscovery) {
         // Model-specific subclasses may add discovery components and fields.
+    }
+
+    private localizeVisibleValues(config: DeviceDiscovery) {
+        const climate = config.components.climate as unknown as Record<string, unknown>
+        for (const key of ['fan_modes', 'preset_modes', 'swing_modes', 'swing_horizontal_modes']) {
+            if (Array.isArray(climate[key])) {
+                climate[key] = displayOptions(climate[key] as string[], AC_DISPLAY_LABELS)
+            }
+        }
+        climate.fan_mode_state_template = displayValueTemplate(AC_DISPLAY_LABELS)
+        climate.fan_mode_command_template = commandValueTemplate(AC_DISPLAY_LABELS)
+        climate.preset_mode_value_template = displayValueTemplate(AC_DISPLAY_LABELS)
+        climate.preset_mode_command_template = commandValueTemplate(AC_DISPLAY_LABELS)
+        climate.swing_mode_state_template = displayValueTemplate(AC_DISPLAY_LABELS)
+        climate.swing_mode_command_template = commandValueTemplate(AC_DISPLAY_LABELS)
+        climate.swing_horizontal_mode_state_template = displayValueTemplate(AC_DISPLAY_LABELS)
+        climate.swing_horizontal_mode_command_template = commandValueTemplate(AC_DISPLAY_LABELS)
+
+        for (const [id, componentInfo] of Object.entries(config.components)) {
+            if (id === 'climate') continue
+            const component = componentInfo as unknown as Record<string, unknown>
+            if (component.platform === 'select') {
+                if (Array.isArray(component.options)) {
+                    component.options = displayOptions(component.options as string[], AC_DISPLAY_LABELS)
+                }
+                if (component.state_topic) component.value_template = displayValueTemplate(AC_DISPLAY_LABELS)
+                if (component.command_topic) component.command_template = commandValueTemplate(AC_DISPLAY_LABELS)
+            }
+            if (id === 'air_quality') component.value_template = displayValueTemplate(AC_DISPLAY_LABELS)
+        }
     }
 
     private publishDirectFilterData() {

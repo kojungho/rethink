@@ -6,6 +6,7 @@ import { type Metadata } from '../thinq'
 import { allowExtendedType } from '@/util/casting'
 import * as TLV from '@/util/tlv'
 import crc16 from '@/util/crc16'
+import { commandValueTemplate, displayOptions, displayValueTemplate } from './display_localization'
 
 const fields = {
     power: 0x1f7,
@@ -23,21 +24,33 @@ const fields = {
 const humiditySensorCommand = 0x50c
 
 const modes: Record<number, string> = {
-    0x11: '스마트 제습',
-    0x12: '쾌속 제습',
-    0x13: '저소음 제습',
-    0x14: '집중 건조',
-    0x15: '의류 건조',
+    0x11: 'SMART_HUMIDITY',
+    0x12: 'RAPID_HUMIDITY',
+    0x13: 'QUIET_HUMIDITY',
+    0x14: 'INTENSIVE_DRY',
+    0x15: 'CLOTHES_DRY',
 }
 
 const modeValues = Object.fromEntries(Object.entries(modes).map(([key, value]) => [value, Number(key)]))
 
 const fanSpeeds: Record<number, string> = {
-    2: '약풍',
-    6: '강풍',
+    2: 'LOW',
+    6: 'HIGH',
 }
 
 const fanSpeedValues = Object.fromEntries(Object.entries(fanSpeeds).map(([key, value]) => [value, Number(key)]))
+
+const DISPLAY_LABELS = {
+    SMART_HUMIDITY: '스마트 제습',
+    RAPID_HUMIDITY: '쾌속 제습',
+    QUIET_HUMIDITY: '저소음 제습',
+    INTENSIVE_DRY: '집중 건조',
+    CLOTHES_DRY: '의류 건조',
+    LOW: '약풍',
+    HIGH: '강풍',
+    ALWAYS: '항상',
+    ON_WORKING: '운전시',
+}
 
 export default class Device extends TLVDevice {
     readonly deviceConfig: DeviceDiscovery
@@ -71,9 +84,11 @@ export default class Device extends TLVDevice {
                         action_topic: '$this/humidifier_action',
                         payload_on: 'ON',
                         payload_off: 'OFF',
-                        modes: Object.values(modes),
+                        modes: displayOptions(Object.values(modes), DISPLAY_LABELS),
                         mode_state_topic: '$this/operating_mode',
                         mode_command_topic: '$this/operating_mode/set',
+                        mode_state_template: displayValueTemplate(DISPLAY_LABELS),
+                        mode_command_template: commandValueTemplate(DISPLAY_LABELS),
                         current_humidity_topic: '$this/current_humidity',
                         target_humidity_state_topic: '$this/target_humidity',
                         target_humidity_command_topic: '$this/target_humidity/set',
@@ -96,7 +111,9 @@ export default class Device extends TLVDevice {
                         entity_category: 'config',
                         state_topic: '$this/operating_mode',
                         command_topic: '$this/operating_mode/set',
-                        options: Object.values(modes),
+                        options: displayOptions(Object.values(modes), DISPLAY_LABELS),
+                        value_template: displayValueTemplate(DISPLAY_LABELS),
+                        command_template: commandValueTemplate(DISPLAY_LABELS),
                     },
                     fan_speed: {
                         platform: 'select',
@@ -104,7 +121,9 @@ export default class Device extends TLVDevice {
                         name: '팬 속도',
                         state_topic: '$this/fan_speed',
                         command_topic: '$this/fan_speed/set',
-                        options: Object.values(fanSpeeds),
+                        options: displayOptions(Object.values(fanSpeeds), DISPLAY_LABELS),
+                        value_template: displayValueTemplate(DISPLAY_LABELS),
+                        command_template: commandValueTemplate(DISPLAY_LABELS),
                     },
                     target_humidity: {
                         platform: 'number',
@@ -146,7 +165,9 @@ export default class Device extends TLVDevice {
                         entity_category: 'config',
                         state_topic: '$this/humidity_sensor_mode',
                         command_topic: '$this/humidity_sensor_mode/set',
-                        options: ['항상', '운전시'],
+                        options: displayOptions(['ALWAYS', 'ON_WORKING'], DISPLAY_LABELS),
+                        value_template: displayValueTemplate(DISPLAY_LABELS),
+                        command_template: commandValueTemplate(DISPLAY_LABELS),
                     },
                     child_lock: {
                         platform: 'binary_sensor',
@@ -206,7 +227,7 @@ export default class Device extends TLVDevice {
             buf[10] === humiditySensorCommand >> 8 &&
             buf[11] === (humiditySensorCommand & 0xff)
         ) {
-            this.HA.publishProperty(this.id, 'humidity_sensor_mode', buf[12] ? '항상' : '운전시')
+            this.HA.publishProperty(this.id, 'humidity_sensor_mode', buf[12] ? 'ALWAYS' : 'ON_WORKING')
             return
         }
         // This model reports its current configuration in an A7 02 packet.
@@ -249,7 +270,7 @@ export default class Device extends TLVDevice {
         // The humidity-sensor setting is reported in this status layout rather
         // than in the A7 02 TLV settings packet: 1 = always, 0 = only while
         // the appliance is operating. Confirmed from the two supplied traces.
-        this.HA.publishProperty(this.id, 'humidity_sensor_mode', buf[24] ? '항상' : '운전시')
+        this.HA.publishProperty(this.id, 'humidity_sensor_mode', buf[24] ? 'ALWAYS' : 'ON_WORKING')
         // Offset 56 is the measured room humidity (for example 0x37 = 55%).
         this.HA.publishProperty(this.id, 'current_humidity', buf[56])
         // Captures show byte 36 changes only with the appliance child lock.
@@ -278,7 +299,7 @@ export default class Device extends TLVDevice {
         if (id === fields.targetHumidity) this.HA.publishProperty(this.id, 'target_humidity', value)
         if (id === fields.offTimer) this.HA.publishProperty(this.id, 'off_timer', value)
         if (id === fields.humiditySensorMode)
-            this.HA.publishProperty(this.id, 'humidity_sensor_mode', value ? '항상' : '운전시')
+            this.HA.publishProperty(this.id, 'humidity_sensor_mode', value ? 'ALWAYS' : 'ON_WORKING')
         if (id === fields.uVnano) this.HA.publishProperty(this.id, 'uvnano', value ? 'ON' : 'OFF')
         if (id === fields.lighting) this.HA.publishProperty(this.id, 'lighting', value ? 'ON' : 'OFF')
         if (id === fields.displayLight) this.HA.publishProperty(this.id, 'display_light', value ? 'OFF' : 'ON')
@@ -296,7 +317,7 @@ export default class Device extends TLVDevice {
         if (prop === 'fan_speed' && fanSpeedValues[value] != null) return this.write(fields.fanSpeed, fanSpeedValues[value])
         if (prop === 'target_humidity') return this.write(fields.targetHumidity, Number(value))
         if (prop === 'off_timer') return this.write(fields.offTimer, Number(value))
-        if (prop === 'humidity_sensor_mode') return this.writeHumiditySensorMode(value === '항상' ? 1 : 0)
+        if (prop === 'humidity_sensor_mode') return this.writeHumiditySensorMode(value === 'ALWAYS' ? 1 : 0)
         console.warn(`Attempting to set unsupported dehumidifier property ${prop}`)
     }
 

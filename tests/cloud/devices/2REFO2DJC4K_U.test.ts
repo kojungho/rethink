@@ -79,14 +79,14 @@ describe(MODEL_ID, () => {
         thinq.emit('data', statusFrame(status))
         const properties = ha.devices[DEVICE_ID].properties
         assert.equal(properties.express_cool_status, 'ON')
-        assert.equal(properties.pure_n_fresh, '자동')
+        assert.equal(properties.pure_n_fresh, 'AUTO')
         assert.equal(properties.display_lock_raw, 1)
         assert.equal(properties.fridge_setpoint, 3)
         assert.equal(properties.freezer_setpoint, -18)
-        assert.equal(properties.craft_ice, '6개 제빙')
-        assert.equal(properties.dispenser_mode, '정수')
+        assert.equal(properties.craft_ice, 'SIX_PIECES')
+        assert.equal(properties.dispenser_mode, 'WATER')
         assert.equal(properties.dispense_volume, 500)
-        assert.equal(properties.smart_care, '꺼짐')
+        assert.equal(properties.smart_care, 'OFF')
         assert.equal(properties.smart_care_control, 'OFF')
     })
 

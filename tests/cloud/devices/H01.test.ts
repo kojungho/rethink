@@ -129,7 +129,7 @@ describe('H01', () => {
         assert.equal(properties.protocol_status, STATUS_HEX)
         assert.equal(properties.state, 'OFF')
         assert.equal(properties.power, 'OFF')
-        assert.equal(properties.course, '꺼짐')
+        assert.equal(properties.course, 'OFF')
         assert.equal(properties.initial_time, '')
         assert.equal(properties.remaining_time, '')
         assert.equal(properties.delay_start, 0)
@@ -179,7 +179,7 @@ describe('H01', () => {
 
         assert.equal(properties.state, 'RUNNING')
         assert.equal(properties.power, 'ON')
-        assert.equal(properties.course, '자동')
+        assert.equal(properties.course, 'AUTO')
         assert.equal(properties.initial_time, 90)
         assertMinutesFromNow(properties.remaining_time, 42)
         assert.equal(properties.delay_start, 2)
@@ -324,13 +324,13 @@ describe('H01', () => {
     test('decodes all H01 courses captured from the physical controls', () => {
         const { ha, thinq } = makeDevice()
         const expected: Array<[number, string]> = [
-            [0x01, '자동'],
-            [0x05, '표준'],
-            [0x02, '강력'],
-            [0x10, '야간조용'],
-            [0x09, '통살균'],
-            [0x06, '다운로드'],
-            [0x0f, '건조단독'],
+            [0x01, 'AUTO'],
+            [0x05, 'NORMAL'],
+            [0x02, 'HEAVY'],
+            [0x10, 'NIGHT_SILENT'],
+            [0x09, 'TUB_CLEAN'],
+            [0x06, 'DOWNLOAD'],
+            [0x0f, 'DRY_ONLY'],
         ]
 
         for (const [course, name] of expected) {
@@ -352,29 +352,29 @@ describe('H01', () => {
         const properties = ha.devices[DEVICE_ID].properties
 
         assert.equal(properties.steam, 'ON')
-        assert.equal(properties.intensive_wash, '상단')
+        assert.equal(properties.intensive_wash, 'UPPER')
         assert.equal(properties.high_temp, 'ON')
         assert.equal(properties.safe_rinse, 'ON')
-        assert.equal(properties.hot_air_dry, '90분')
+        assert.equal(properties.hot_air_dry, 'MIN_90')
 
         current[12] = 0xa0
         current[15] = 0x10
         thinq.emit('data', frame(Buffer.concat([Buffer.from([0x32, 0xec]), statusBlock(), statusBlock(current)])))
-        assert.equal(properties.intensive_wash, '하단')
-        assert.equal(properties.hot_air_dry, '40분')
+        assert.equal(properties.intensive_wash, 'LOWER')
+        assert.equal(properties.hot_air_dry, 'MIN_40')
 
         current[12] = 0x80
         current[15] = 0x20
         thinq.emit('data', frame(Buffer.concat([Buffer.from([0x32, 0xec]), statusBlock(), statusBlock(current)])))
-        assert.equal(properties.intensive_wash, '전체')
-        assert.equal(properties.hot_air_dry, '60분')
+        assert.equal(properties.intensive_wash, 'ALL')
+        assert.equal(properties.hot_air_dry, 'MIN_60')
 
         current[12] = 0
         current[15] = 0
         thinq.emit('data', frame(Buffer.concat([Buffer.from([0x32, 0xec]), statusBlock(), statusBlock(current)])))
         assert.equal(properties.steam, 'OFF')
         assert.equal(properties.safe_rinse, 'OFF')
-        assert.equal(properties.hot_air_dry, '꺼짐')
+        assert.equal(properties.hot_air_dry, 'OFF')
     })
 
     test('ignores unknown and malformed frames', () => {

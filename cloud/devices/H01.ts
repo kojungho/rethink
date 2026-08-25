@@ -48,14 +48,14 @@ const STATE_LABELS = {
 }
 
 const COURSES: Record<number, string> = {
-    0x00: '꺼짐',
-    0x01: '자동',
-    0x02: '강력',
-    0x05: '표준',
-    0x06: '다운로드',
-    0x09: '통살균',
-    0x0f: '건조단독',
-    0x10: '야간조용',
+    0x00: 'OFF',
+    0x01: 'AUTO',
+    0x02: 'HEAVY',
+    0x05: 'NORMAL',
+    0x06: 'DOWNLOAD',
+    0x09: 'TUB_CLEAN',
+    0x0f: 'DRY_ONLY',
+    0x10: 'NIGHT_SILENT',
 }
 
 const REMOTE_COURSES: Record<string, number> = {
@@ -101,6 +101,19 @@ const DISPLAY_LABELS = {
     AUTO: '자동',
     ONE_HOUR: '1시간',
     DOWNLOAD_CYCLE: '다운로드 코스',
+    DOWNLOAD: '다운로드',
+    TUB_CLEAN: '통살균',
+    HEAVY: '강력',
+    NORMAL: '표준',
+    DRY_ONLY: '건조단독',
+    NIGHT_SILENT: '야간조용',
+    UPPER: '상단',
+    LOWER: '하단',
+    ALL: '전체',
+    UNKNOWN: '알 수 없음',
+    MIN_40: '40분',
+    MIN_60: '60분',
+    MIN_90: '90분',
     WASHING: '세척 중',
     RINSING: '헹굼 중',
 }
@@ -165,7 +178,8 @@ export default class Device extends AABBDevice {
                         name: '코스',
                         icon: 'mdi:dishwasher',
                         device_class: 'enum',
-                        options: Object.values(COURSES),
+                        options: displayOptions(Object.values(COURSES), DISPLAY_LABELS),
+                        value_template: displayValueTemplate(DISPLAY_LABELS),
                     },
                     steam: {
                         platform: 'binary_sensor',
@@ -182,6 +196,9 @@ export default class Device extends AABBDevice {
                         state_topic: '$this/intensive_wash',
                         name: '집중세척',
                         icon: 'mdi:spray-bottle',
+                        device_class: 'enum',
+                        options: displayOptions(['UPPER', 'LOWER', 'ALL', 'UNKNOWN'], DISPLAY_LABELS),
+                        value_template: displayValueTemplate(DISPLAY_LABELS),
                     },
                     safe_rinse: {
                         platform: 'binary_sensor',
@@ -198,6 +215,9 @@ export default class Device extends AABBDevice {
                         state_topic: '$this/hot_air_dry',
                         name: '열풍건조',
                         icon: 'mdi:weather-windy',
+                        device_class: 'enum',
+                        options: displayOptions(['OFF', 'MIN_40', 'MIN_60', 'MIN_90'], DISPLAY_LABELS),
+                        value_template: displayValueTemplate(DISPLAY_LABELS),
                     },
                     initial_time: {
                         platform: 'sensor',
@@ -497,6 +517,8 @@ export default class Device extends AABBDevice {
                 state: { platform: 'sensor' },
                 course: { platform: 'sensor' },
                 downloaded_course: { platform: 'sensor' },
+                intensive_wash: { platform: 'sensor' },
+                hot_air_dry: { platform: 'sensor' },
                 remaining_time: { platform: 'sensor' },
                 initial_time: { platform: 'sensor' },
                 rinse_level: { platform: 'number' },
@@ -645,26 +667,26 @@ export default class Device extends AABBDevice {
     private intensiveWash(value: number) {
         switch (value & 0x60) {
             case 0x40:
-                return '상단'
+                return 'UPPER'
             case 0x20:
-                return '하단'
+                return 'LOWER'
             case 0x00:
-                return '전체'
+                return 'ALL'
             default:
-                return '알 수 없음'
+                return 'UNKNOWN'
         }
     }
 
     private hotAirDry(value: number) {
         switch (value & 0x30) {
             case 0x10:
-                return '40분'
+                return 'MIN_40'
             case 0x20:
-                return '60분'
+                return 'MIN_60'
             case 0x30:
-                return '90분'
+                return 'MIN_90'
             default:
-                return '꺼짐'
+                return 'OFF'
         }
     }
 

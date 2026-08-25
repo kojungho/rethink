@@ -4,7 +4,7 @@ import { Device as Thinq2Device } from '../thinq2/device'
 import { type Connection } from '../homeassistant'
 import { type Metadata } from '../thinq'
 import { allowExtendedType } from '@/util/casting'
-import { displayValueTemplate } from './display_localization'
+import { commandValueTemplate, displayOptions, displayValueTemplate } from './display_localization'
 
 const STATUS_DATA_LENGTH = 0x25
 
@@ -30,63 +30,99 @@ const DISPLAY_LABELS = {
     CHARGED: '충전 완료',
     IDLE: '대기',
     NORMAL: '표준',
+    SUCTION_NORMAL: '표준',
+    SUCTION_HIGH: '강',
+    SUCTION_TURBO: '터보',
+    SUCTION_LOW_POWER: '저전력',
+    MOP_ONLY: '물걸레만 사용',
+    MOP_AND_VACUUM: '물걸레와 흡입 동시 사용',
+    LEVEL_1: '1단계',
+    LEVEL_2: '2단계',
+    HOT_WATER_MOP: '온수 물걸레',
+    SAFE_STEAM: '안심 스팀',
+    BRIGHTNESS_VERY_BRIGHT: '매우 밝게',
+    BRIGHTNESS_BRIGHT: '밝게',
+    BRIGHTNESS_NORMAL: '보통',
+    BRIGHTNESS_DIM: '어둡게',
+    DEW: '이슬',
+    SPROUT: '새싹',
+    BUTTERFLY: '나비',
+    VOLUME_HIGH: '크게',
+    VOLUME_NORMAL: '보통',
+    VOLUME_LOW: '작게',
+    VOLUME_MUTED: '음소거',
+    LUCKY: '럭키',
+    MARBLE: '구슬',
+    ICE: '얼음',
+    BREEZE: '산들 바람',
+    NEBULA: '성운',
 }
 
 const SUCTION_POWER: Record<number, string> = {
-    0x01: '표준',
-    0x02: '강',
-    0x03: '터보',
-    0x04: '저전력',
+    0x01: 'SUCTION_NORMAL',
+    0x02: 'SUCTION_HIGH',
+    0x03: 'SUCTION_TURBO',
+    0x04: 'SUCTION_LOW_POWER',
 }
 
 const MOP_MODES: Record<number, string> = {
-    0x01: '물걸레만 사용',
-    0x02: '물걸레와 흡입 동시 사용',
+    0x01: 'MOP_ONLY',
+    0x02: 'MOP_AND_VACUUM',
 }
 
 const WATER_SUPPLY: Record<number, string> = {
-    0x02: '1단계',
-    0x03: '2단계',
+    0x02: 'LEVEL_1',
+    0x03: 'LEVEL_2',
 }
 
 const STEAM_MODES: Record<number, string> = {
-    0x02: '온수 물걸레',
-    0x03: '안심 스팀',
+    0x02: 'HOT_WATER_MOP',
+    0x03: 'SAFE_STEAM',
 }
 
 const DISPLAY_BRIGHTNESS: Record<number, string> = {
-    0x01: '매우 밝게',
-    0x02: '밝게',
-    0x03: '보통',
-    0x04: '어둡게',
+    0x01: 'BRIGHTNESS_VERY_BRIGHT',
+    0x02: 'BRIGHTNESS_BRIGHT',
+    0x03: 'BRIGHTNESS_NORMAL',
+    0x04: 'BRIGHTNESS_DIM',
 }
 
 const DUST_EMPTY_MELODIES: Record<number, string> = {
-    0x01: '이슬',
-    0x02: '새싹',
-    0x03: '나비',
+    0x01: 'DEW',
+    0x02: 'SPROUT',
+    0x03: 'BUTTERFLY',
 }
 
 const CHARGING_ALERT_VOLUMES: Record<number, string> = {
-    0x01: '크게',
-    0x02: '보통',
-    0x03: '작게',
+    0x01: 'VOLUME_HIGH',
+    0x02: 'VOLUME_NORMAL',
+    0x03: 'VOLUME_LOW',
 }
 
 const CHARGING_MELODIES: Record<number, string> = {
-    0x01: '럭키',
-    0x02: '구슬',
-    0x03: '얼음',
-    0x04: '산들 바람',
-    0x05: '성운',
+    0x01: 'LUCKY',
+    0x02: 'MARBLE',
+    0x03: 'ICE',
+    0x04: 'BREEZE',
+    0x05: 'NEBULA',
 }
 
 const BUTTON_SOUNDS: Record<number, string> = {
-    0x01: '크게',
-    0x02: '보통',
-    0x03: '작게',
-    0x04: '음소거',
+    0x01: 'VOLUME_HIGH',
+    0x02: 'VOLUME_NORMAL',
+    0x03: 'VOLUME_LOW',
+    0x04: 'VOLUME_MUTED',
 }
+
+const SUCTION_OPTIONS = ['SUCTION_LOW_POWER', 'SUCTION_NORMAL', 'SUCTION_HIGH', 'SUCTION_TURBO']
+const MOP_OPTIONS = ['MOP_AND_VACUUM', 'MOP_ONLY']
+const WATER_OPTIONS = ['LEVEL_1', 'LEVEL_2']
+const STEAM_OPTIONS = ['SAFE_STEAM', 'HOT_WATER_MOP']
+const BRIGHTNESS_OPTIONS = ['BRIGHTNESS_DIM', 'BRIGHTNESS_NORMAL', 'BRIGHTNESS_BRIGHT', 'BRIGHTNESS_VERY_BRIGHT']
+const DUST_MELODY_OPTIONS = ['DEW', 'SPROUT', 'BUTTERFLY']
+const CHARGING_VOLUME_OPTIONS = ['VOLUME_LOW', 'VOLUME_NORMAL', 'VOLUME_HIGH']
+const CHARGING_MELODY_OPTIONS = ['LUCKY', 'MARBLE', 'ICE', 'BREEZE', 'NEBULA']
+const BUTTON_SOUND_OPTIONS = ['VOLUME_MUTED', 'VOLUME_LOW', 'VOLUME_NORMAL', 'VOLUME_HIGH']
 
 const SELECT_COMMANDS: Record<string, { command: number; values: Record<string, number> }> = {
     suction_power: { command: 0x02, values: invert(SUCTION_POWER) },
@@ -145,7 +181,9 @@ export default class Device extends AABBDevice {
                         unique_id: '$deviceid-suction-power',
                         state_topic: '$this/suction_power',
                         command_topic: '$this/suction_power/set',
-                        options: ['저전력', '표준', '강', '터보'],
+                        options: displayOptions(SUCTION_OPTIONS, DISPLAY_LABELS),
+                        value_template: displayValueTemplate(DISPLAY_LABELS),
+                        command_template: commandValueTemplate(DISPLAY_LABELS),
                         name: '청소 시작 흡입력',
                         icon: 'mdi:fan-speed-3',
                         entity_category: 'config',
@@ -155,7 +193,9 @@ export default class Device extends AABBDevice {
                         unique_id: '$deviceid-mop-mode',
                         state_topic: '$this/mop_mode',
                         command_topic: '$this/mop_mode/set',
-                        options: ['물걸레와 흡입 동시 사용', '물걸레만 사용'],
+                        options: displayOptions(MOP_OPTIONS, DISPLAY_LABELS),
+                        value_template: displayValueTemplate(DISPLAY_LABELS),
+                        command_template: commandValueTemplate(DISPLAY_LABELS),
                         name: '기본 물걸레 흡입구 모드',
                         icon: 'mdi:water-opacity',
                         entity_category: 'config',
@@ -165,7 +205,9 @@ export default class Device extends AABBDevice {
                         unique_id: '$deviceid-water-supply',
                         state_topic: '$this/water_supply',
                         command_topic: '$this/water_supply/set',
-                        options: ['1단계', '2단계'],
+                        options: displayOptions(WATER_OPTIONS, DISPLAY_LABELS),
+                        value_template: displayValueTemplate(DISPLAY_LABELS),
+                        command_template: commandValueTemplate(DISPLAY_LABELS),
                         name: '기본 물공급 양',
                         icon: 'mdi:water-plus',
                         entity_category: 'config',
@@ -175,7 +217,9 @@ export default class Device extends AABBDevice {
                         unique_id: '$deviceid-steam-mode',
                         state_topic: '$this/steam_mode',
                         command_topic: '$this/steam_mode/set',
-                        options: ['안심 스팀', '온수 물걸레'],
+                        options: displayOptions(STEAM_OPTIONS, DISPLAY_LABELS),
+                        value_template: displayValueTemplate(DISPLAY_LABELS),
+                        command_template: commandValueTemplate(DISPLAY_LABELS),
                         name: '기본 스팀 흡입구 모드',
                         icon: 'mdi:heat-wave',
                         entity_category: 'config',
@@ -185,7 +229,9 @@ export default class Device extends AABBDevice {
                         unique_id: '$deviceid-display-brightness',
                         state_topic: '$this/display_brightness',
                         command_topic: '$this/display_brightness/set',
-                        options: ['어둡게', '보통', '밝게', '매우 밝게'],
+                        options: displayOptions(BRIGHTNESS_OPTIONS, DISPLAY_LABELS),
+                        value_template: displayValueTemplate(DISPLAY_LABELS),
+                        command_template: commandValueTemplate(DISPLAY_LABELS),
                         name: '충전 중 화면 밝기',
                         icon: 'mdi:brightness-6',
                         entity_category: 'config',
@@ -195,7 +241,9 @@ export default class Device extends AABBDevice {
                         unique_id: '$deviceid-dust-empty-melody',
                         state_topic: '$this/dust_empty_melody',
                         command_topic: '$this/dust_empty_melody/set',
-                        options: ['이슬', '새싹', '나비'],
+                        options: displayOptions(DUST_MELODY_OPTIONS, DISPLAY_LABELS),
+                        value_template: displayValueTemplate(DISPLAY_LABELS),
+                        command_template: commandValueTemplate(DISPLAY_LABELS),
                         name: '먼지 비움 멜로디',
                         icon: 'mdi:music-note',
                         entity_category: 'config',
@@ -205,7 +253,9 @@ export default class Device extends AABBDevice {
                         unique_id: '$deviceid-charging-alert-volume',
                         state_topic: '$this/charging_alert_volume',
                         command_topic: '$this/charging_alert_volume/set',
-                        options: ['작게', '보통', '크게'],
+                        options: displayOptions(CHARGING_VOLUME_OPTIONS, DISPLAY_LABELS),
+                        value_template: displayValueTemplate(DISPLAY_LABELS),
+                        command_template: commandValueTemplate(DISPLAY_LABELS),
                         name: '충전 중 알림 소리',
                         icon: 'mdi:volume-high',
                         entity_category: 'config',
@@ -215,7 +265,9 @@ export default class Device extends AABBDevice {
                         unique_id: '$deviceid-charging-melody',
                         state_topic: '$this/charging_melody',
                         command_topic: '$this/charging_melody/set',
-                        options: ['럭키', '구슬', '얼음', '산들 바람', '성운'],
+                        options: displayOptions(CHARGING_MELODY_OPTIONS, DISPLAY_LABELS),
+                        value_template: displayValueTemplate(DISPLAY_LABELS),
+                        command_template: commandValueTemplate(DISPLAY_LABELS),
                         name: '충전 알림 멜로디',
                         icon: 'mdi:music-note-eighth',
                         entity_category: 'config',
@@ -225,7 +277,9 @@ export default class Device extends AABBDevice {
                         unique_id: '$deviceid-button-sound',
                         state_topic: '$this/button_sound',
                         command_topic: '$this/button_sound/set',
-                        options: ['음소거', '작게', '보통', '크게'],
+                        options: displayOptions(BUTTON_SOUND_OPTIONS, DISPLAY_LABELS),
+                        value_template: displayValueTemplate(DISPLAY_LABELS),
+                        command_template: commandValueTemplate(DISPLAY_LABELS),
                         name: '설정 버튼 알림음',
                         icon: 'mdi:volume-medium',
                         entity_category: 'config',

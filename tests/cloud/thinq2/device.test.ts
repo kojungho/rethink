@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { Device, DeviceAcceptor, timeSyncPayload } from '@/cloud/thinq2/device'
 import { EventEmitter } from 'node:events'
 import type { Broker } from '@/cloud/mqtt-broker'
+import { enableMockTimers, tickMockTimers } from '../../helpers/timers'
 
 describe('ThinQ2 time synchronization', () => {
     test('encodes a one-based month in the appliance timezone', () => {
@@ -92,6 +93,40 @@ describe('ThinQ2 time synchronization', () => {
         const response = JSON.parse(published[0].payload.toString())
         assert.equal(response.cmd, 'resp_timesync')
         assert.equal(Buffer.from(response.data, 'base64').length, 7)
+    })
+
+    test('retries PAC time synchronization after provisioning and stops after disconnect', (t) => {
+        enableMockTimers(t)
+        const published: Array<{ topic: string; payload: Buffer | string }> = []
+        const broker = Object.assign(new EventEmitter(), {
+            publish(packet: { topic: string; payload: Buffer | string }) {
+                published.push(packet)
+            },
+        }) as unknown as Broker
+        const acceptor = new DeviceAcceptor(broker)
+        const client = {
+            deployMsg: {
+                did: 'pac-1',
+                kind: 'PAC_910604_WW',
+                data: { appInfo: { timezone: '+0900' } },
+            },
+            deviceObj: undefined,
+            destroy() {},
+        }
+
+        acceptor.completeProvisioning(
+            'pac-1',
+            { did: 'pac-1', cmd: 'completeProvisioning_ack', type: 1, data: '', mid: 1 },
+            client as never,
+        )
+        assert.equal(published.length, 1, 'initial synchronization')
+
+        tickMockTimers(t, 60_000)
+        assert.equal(published.length, 4, 'three delayed synchronizations')
+
+        acceptor.disconnected(client as never)
+        tickMockTimers(t, 6 * 60 * 60 * 1000)
+        assert.equal(published.length, 4, 'no synchronization after disconnect')
     })
 })
 

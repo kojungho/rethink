@@ -501,6 +501,7 @@ const INIT_LCD_THEMES: Record<number, string> = {
 export default class Device extends AABBDevice {
     protected readonly dryerStateOffset: number = 53
     private remainingTargets: Partial<Record<'washer' | 'dryer', { minutes: number; timestamp: string }>> = {}
+    private reserveTargets: Partial<Record<'washer' | 'dryer', { minutes: number; timestamp: string }>> = {}
 
     constructor(HA: Connection, thinq: Thinq2Device, meta: Metadata) {
         super(HA, thinq)
@@ -588,6 +589,14 @@ export default class Device extends AABBDevice {
                         unit_of_measurement: 'min',
                         name: '세탁기 예약 시간',
                     },
+                    washer_delay_ends_at: {
+                        platform: 'sensor',
+                        unique_id: '$deviceid-washer-delay-ends-at',
+                        state_topic: '$this/washer/delay_ends_at',
+                        device_class: 'timestamp',
+                        name: '세탁기 예약 종료까지 남은 시간',
+                        icon: 'mdi:clock-end',
+                    },
                     washer_remaining_time: {
                         platform: 'sensor',
                         unique_id: '$deviceid-washer-remaining-time',
@@ -642,6 +651,14 @@ export default class Device extends AABBDevice {
                         device_class: 'duration',
                         unit_of_measurement: 'min',
                         name: '건조기 예약 시간',
+                    },
+                    dryer_delay_ends_at: {
+                        platform: 'sensor',
+                        unique_id: '$deviceid-dryer-delay-ends-at',
+                        state_topic: '$this/dryer/delay_ends_at',
+                        device_class: 'timestamp',
+                        name: '건조기 예약 종료까지 남은 시간',
+                        icon: 'mdi:clock-end',
                     },
                     dryer_remaining_time: {
                         platform: 'sensor',
@@ -868,6 +885,14 @@ export default class Device extends AABBDevice {
                         name: '세탁기 전원',
                         icon: 'mdi:washing-machine',
                     },
+                    washer_operation: {
+                        platform: 'select',
+                        unique_id: '$deviceid-washer-operation',
+                        command_topic: '$this/washer/operation/set',
+                        options: ['start', 'stop', 'power_off'],
+                        name: '세탁기 운전',
+                        icon: 'mdi:play-pause',
+                    },
                     dryer_power: {
                         platform: 'switch',
                         unique_id: '$deviceid-dryer-power',
@@ -877,6 +902,14 @@ export default class Device extends AABBDevice {
                         payload_off: 'OFF',
                         name: '건조기 전원',
                         icon: 'mdi:tumble-dryer',
+                    },
+                    dryer_operation: {
+                        platform: 'select',
+                        unique_id: '$deviceid-dryer-operation',
+                        command_topic: '$this/dryer/operation/set',
+                        options: ['start', 'stop', 'power_off'],
+                        name: '건조기 운전',
+                        icon: 'mdi:play-pause',
                     },
                     init_lcd: {
                         platform: 'select',
@@ -986,6 +1019,10 @@ export default class Device extends AABBDevice {
         } else if (prop === 'dryer/power') {
             const on = value === 'ON' ? 0x01 : 0x00
             this.send(Buffer.from([0xf0, 0xe5, 0x00, 0x02, 0x01, DRYER_UNIT, 0x01, 0x02, on]))
+        } else if (prop === 'washer/operation') {
+            this.setOperation(WASHER_UNIT, value)
+        } else if (prop === 'dryer/operation') {
+            this.setOperation(DRYER_UNIT, value)
         } else if (prop === 'washer/buzzer') {
             const idx = Object.values(DEVICE_BUZZER).indexOf(value)
             if (idx !== -1) {
@@ -1010,6 +1047,16 @@ export default class Device extends AABBDevice {
             if (idx !== -1) {
                 this.send(Buffer.from([0xf0, 0xe5, 0x00, 0x02, 0x01, WASHER_UNIT, 0x01, 0x51, idx]))
             }
+        }
+    }
+
+    private setOperation(unit: number, operation: string) {
+        if (operation === 'start') {
+            this.send(Buffer.from([0xf0, 0x24, 0x05, 0x01, 0x00, unit]))
+        } else if (operation === 'stop') {
+            this.send(Buffer.from([0xf0, 0x24, 0x04, 0x01, 0x00, unit]))
+        } else if (operation === 'power_off') {
+            this.send(Buffer.from([0xf0, 0xe5, 0x00, 0x02, 0x01, unit, 0x01, 0x02, 0x00]))
         }
     }
 
@@ -1128,10 +1175,15 @@ export default class Device extends AABBDevice {
         this.publishProperty('washer/soak', Device.formatEnum(WASHER_SOAK, block[9]))
         this.publishProperty('washer/water_level', Device.formatEnum(WASHER_WATER_LEVEL, block[11]))
         this.publishProperty('washer/load_item', Device.formatEnum(WASHER_LOAD_ITEM, block[12]))
-        this.publishProperty('washer/reserve_time', block.readUInt16BE(13))
         const washerState = block[23]
         const washerStateName = Device.formatEnum(WASHER_STATES, washerState)
         const washerPowerOff = WASHER_POWER_OFF_STATES.has(washerStateName)
+        const washerReserveMinutes = block.readUInt16BE(13)
+        this.publishProperty('washer/reserve_time', washerReserveMinutes)
+        this.publishProperty(
+            'washer/delay_ends_at',
+            this.reserveTimestamp('washer', washerReserveMinutes, washerPowerOff),
+        )
         this.publishProperty(
             'washer/remaining_time',
             this.remainingTimestamp('washer', block.readUInt16BE(15), washerState, WASHER_STATES),
@@ -1168,10 +1220,12 @@ export default class Device extends AABBDevice {
         this.publishProperty('dryer/temp', Device.formatEnum(DRYER_TEMP, dryer[3]))
         this.publishProperty('dryer/time_dry', Device.formatEnum(DRYER_TIME_DRY, dryer[4]))
         this.publishProperty('dryer/course', Device.formatEnum(DRYER_COURSES, dryer[5]))
-        this.publishProperty('dryer/reserve_time', dryer.readUInt16BE(7))
         const dryerState = dryer[13]
         const dryerStateName = Device.formatEnum(DRYER_STATES, dryerState)
         const dryerPowerOff = DRYER_POWER_OFF_STATES.has(dryerStateName)
+        const dryerReserveMinutes = dryer.readUInt16BE(7)
+        this.publishProperty('dryer/reserve_time', dryerReserveMinutes)
+        this.publishProperty('dryer/delay_ends_at', this.reserveTimestamp('dryer', dryerReserveMinutes, dryerPowerOff))
         this.publishProperty(
             'dryer/remaining_time',
             this.remainingTimestamp('dryer', dryer.readUInt16BE(9), dryerState, DRYER_STATES),
@@ -1210,6 +1264,19 @@ export default class Device extends AABBDevice {
         if (previous?.minutes === minutes) return previous.timestamp
         const timestamp = new Date(Date.now() + minutes * 60_000).toISOString()
         this.remainingTargets[unit] = { minutes, timestamp }
+        return timestamp
+    }
+
+    private reserveTimestamp(unit: 'washer' | 'dryer', minutes: number, powerOff: boolean) {
+        if (minutes <= 0 || powerOff) {
+            delete this.reserveTargets[unit]
+            return ''
+        }
+        const expected = Date.now() + minutes * 60_000
+        const previous = this.reserveTargets[unit]
+        if (previous && Math.abs(Date.parse(previous.timestamp) - expected) < 90_000) return previous.timestamp
+        const timestamp = new Date(expected).toISOString()
+        this.reserveTargets[unit] = { minutes, timestamp }
         return timestamp
     }
 }

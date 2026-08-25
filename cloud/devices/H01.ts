@@ -323,6 +323,14 @@ export default class Device extends AABBDevice {
                         name: '전원',
                         icon: 'mdi:power',
                     },
+                    operation: {
+                        platform: 'select',
+                        unique_id: '$deviceid-operation',
+                        command_topic: '$this/operation/set',
+                        options: ['start', 'stop', 'cancel', 'power_off'],
+                        name: '운전',
+                        icon: 'mdi:play-pause',
+                    },
                     pause: {
                         platform: 'button',
                         unique_id: '$deviceid-pause',
@@ -600,6 +608,9 @@ export default class Device extends AABBDevice {
     setProperty(prop: string, value: string) {
         if (prop === 'power') {
             this.send(Buffer.from(value === 'ON' ? 'F02616' : 'F02612', 'hex'))
+        } else if (prop === 'operation') {
+            const command = { start: 'F02614', stop: 'F02613', cancel: 'F02611', power_off: 'F02612' }[value]
+            if (command) this.send(Buffer.from(command, 'hex'))
         } else if (prop === 'pause') {
             this.send(Buffer.from('F02613', 'hex'))
         } else if (prop === 'resume') {

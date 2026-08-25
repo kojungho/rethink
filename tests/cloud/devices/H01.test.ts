@@ -52,6 +52,8 @@ describe('H01', () => {
         assert.equal(components.auto_dry, undefined)
         assert.equal(components.brightness, undefined)
         assert.equal(components.power.platform, 'switch')
+        assert.equal(components.operation.platform, 'select')
+        assert.deepEqual(components.operation.options, ['start', 'stop', 'cancel', 'power_off'])
         assert.equal(components.pause.platform, 'button')
         assert.equal(components.remote_course.platform, 'select')
         assert.equal(components.remote_high_temp, undefined)
@@ -222,6 +224,22 @@ describe('H01', () => {
             'AA07F026138FBB',
             'AA07F026148EBB',
             'AA07F026118DBB',
+        ])
+    })
+
+    test('maps official operation options to the captured control commands', () => {
+        const { thinq, dev } = makeDevice()
+
+        dev.setProperty('operation', 'start')
+        dev.setProperty('operation', 'stop')
+        dev.setProperty('operation', 'cancel')
+        dev.setProperty('operation', 'power_off')
+
+        assert.deepEqual(thinq.outbox.map(hex), [
+            'AA07F026148EBB',
+            'AA07F026138FBB',
+            'AA07F026118DBB',
+            'AA07F026128CBB',
         ])
     })
 

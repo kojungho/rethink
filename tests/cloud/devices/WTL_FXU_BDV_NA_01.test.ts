@@ -41,6 +41,10 @@ const SEND_WASHER_POWER_ON = 'AA0DF0E50002013301020193BB'
 const SEND_WASHER_POWER_OFF = 'AA0DF0E50002013301020090BB'
 const SEND_DRYER_POWER_ON = 'AA0DF0E50002013401020192BB'
 const SEND_DRYER_POWER_OFF = 'AA0DF0E50002013401020093BB'
+const SEND_WASHER_START = 'AA0AF0240501003354BB'
+const SEND_WASHER_STOP = 'AA0AF0240401003355BB'
+const SEND_DRYER_START = 'AA0AF0240501003457BB'
+const SEND_DRYER_STOP = 'AA0AF0240401003454BB'
 const SEND_INIT_LCD_DEFAULT = 'AA0DF0E50002013301510041BB' // 'Default' = idx 0
 const SEND_INIT_LCD_SPRING2 = 'AA0DF0E5000201330151054CBB' // 'Spring 2' = idx 5
 const SEND_WASHER_BUZZER_OFF = 'AA0DF0E50002013301130083BB'
@@ -104,12 +108,16 @@ describe(MODEL_ID, () => {
             'washer_temp',
             'washer_spin',
             'washer_remaining_time',
+            'washer_delay_ends_at',
+            'washer_operation',
             'washer_remote_maintain',
             'washer_laundry_care',
             'dryer_state',
             'dryer_power',
             'dryer_door',
             'dryer_course',
+            'dryer_delay_ends_at',
+            'dryer_operation',
             'dryer_remote_maintain',
             'init_lcd',
         ]) {
@@ -139,6 +147,18 @@ describe(MODEL_ID, () => {
         assert.ok((dryerState.options as string[]).includes('AI_LOAD_CHECK'))
         assert.equal((components.washer_remaining_time as Record<string, unknown>).device_class, 'timestamp')
         assert.equal((components.dryer_remaining_time as Record<string, unknown>).device_class, 'timestamp')
+        assert.equal((components.washer_delay_ends_at as Record<string, unknown>).device_class, 'timestamp')
+        assert.equal((components.dryer_delay_ends_at as Record<string, unknown>).device_class, 'timestamp')
+        assert.deepEqual((components.washer_operation as Record<string, unknown>).options, [
+            'start',
+            'stop',
+            'power_off',
+        ])
+        assert.deepEqual((components.dryer_operation as Record<string, unknown>).options, [
+            'start',
+            'stop',
+            'power_off',
+        ])
         assert.equal(washerPower.optimistic, undefined)
         assert.equal(dryerPower.optimistic, undefined)
         assert.equal((components.washer_buzzer as Record<string, unknown>).entity_category, 'config')
@@ -266,6 +286,33 @@ describe(MODEL_ID, () => {
         dev.setProperty('dryer/power', 'OFF')
         assert.equal(thinq.outbox.length, 1)
         assert.equal(hex(thinq.outbox[0]), SEND_DRYER_POWER_OFF)
+    })
+
+    test('setProperty operation sends start, stop, and power-off packets for each unit', () => {
+        const { thinq, dev } = makeDevice()
+        thinq.resetRecorder()
+        dev.setProperty('washer/operation', 'start')
+        dev.setProperty('washer/operation', 'stop')
+        dev.setProperty('washer/operation', 'power_off')
+        dev.setProperty('dryer/operation', 'start')
+        dev.setProperty('dryer/operation', 'stop')
+        dev.setProperty('dryer/operation', 'power_off')
+
+        assert.deepEqual(thinq.outbox.map(hex), [
+            SEND_WASHER_START,
+            SEND_WASHER_STOP,
+            SEND_WASHER_POWER_OFF,
+            SEND_DRYER_START,
+            SEND_DRYER_STOP,
+            SEND_DRYER_POWER_OFF,
+        ])
+    })
+
+    test('publishes reservation completion as a timestamp', () => {
+        const { ha, thinq } = makeDevice()
+        thinq.emit('data', buildResync({ 13: 0x00, 14: 0x78, 23: 0x03 }))
+
+        assertMinutesFromNow(ha.devices[DEVICE_ID].properties['washer/delay_ends_at'], 120)
     })
 
     test('setProperty shared/init_lcd sends correct packet with theme index', () => {

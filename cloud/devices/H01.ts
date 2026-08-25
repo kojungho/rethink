@@ -18,6 +18,34 @@ const STATES: Record<number, string> = {
     // power entity instead of presenting an ambiguous standby state.
     0x04: 'OFF',
 }
+const STATE_OPTIONS = [
+    'OFF',
+    'INITIAL',
+    'RUNNING',
+    'PAUSE',
+    'END',
+    'RESERVED',
+    'NIGHT_DRY',
+    'ERROR',
+    'RINSING',
+    'POWER_FAIL',
+    'DRYING',
+    'CANCEL',
+]
+const STATE_LABELS = {
+    OFF: '꺼짐',
+    INITIAL: '초기화',
+    RUNNING: '운전 중',
+    PAUSE: '일시정지',
+    END: '종료',
+    RESERVED: '예약',
+    NIGHT_DRY: '야간 건조',
+    ERROR: '오류',
+    RINSING: '헹굼 중',
+    POWER_FAIL: '정전',
+    DRYING: '건조 중',
+    CANCEL: '취소',
+}
 const COURSES: Record<number, string> = {
     0x00: 'OFF',
     0x01: 'AUTO',
@@ -134,7 +162,14 @@ export default class Device extends AABBDevice {
                 components: {
                     state: {
                         platform: 'sensor',
-                    } as unknown as DeviceDiscovery['components'][string],
+                        unique_id: '$deviceid-state',
+                        state_topic: '$this/state',
+                        name: '현재 상태',
+                        icon: 'mdi:dishwasher',
+                        device_class: 'enum',
+                        options: displayOptions(STATE_OPTIONS, STATE_LABELS),
+                        value_template: displayValueTemplate(STATE_LABELS),
+                    },
                     course: {
                         platform: 'sensor',
                         unique_id: '$deviceid-course',

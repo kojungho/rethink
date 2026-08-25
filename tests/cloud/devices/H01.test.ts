@@ -35,7 +35,10 @@ describe('H01', () => {
         const components = ha.devices[DEVICE_ID].config!.components as Record<string, Record<string, unknown>>
 
         assert.equal(components.state.platform, 'sensor')
-        assert.deepEqual(components.state, { platform: 'sensor' })
+        assert.equal(components.state.unique_id, '$deviceid-state')
+        assert.equal(components.state.state_topic, '$this/state')
+        assert.equal(components.state.device_class, 'enum')
+        assert.ok((components.state.options as string[]).includes('오류'))
         assert.equal(components.course.device_class, 'enum')
         assert.ok((components.course.options as string[]).includes('통살균'))
         assert.equal(components.downloaded_course.device_class, 'enum')
@@ -102,6 +105,7 @@ describe('H01', () => {
         assert.deepEqual(configs[0].brightness, { platform: 'select' })
         assert.deepEqual(configs[0].auto_dry, { platform: 'switch' })
         assert.equal(configs[1].steam.platform, 'binary_sensor')
+        assert.equal(configs[1].state.state_topic, '$this/state')
         assert.equal(configs[1].remote_steam, undefined)
         assert.equal(configs[1].remote_high_temp, undefined)
         assert.equal(configs[1].remote_extra_dry, undefined)

@@ -156,6 +156,26 @@ describe(MODEL_ID, () => {
         ])
         assert.deepEqual((components.dryer_operation as Record<string, unknown>).options, ['시작', '정지', '전원 끄기'])
         assert.match((components.washer_operation as Record<string, unknown>).command_template as string, /시작/)
+        for (const id of [
+            'washer_course',
+            'washer_error',
+            'dryer_course',
+            'dryer_dry_level',
+            'dryer_error',
+            'dryer_duct_clogging',
+        ]) {
+            const template = (components[id] as Record<string, unknown>).value_template as string
+            assert.match(template, /NOT_SELECTED.*선택 안 함|NONE.*없음/)
+        }
+        assert.match(
+            (components.washer_course as Record<string, unknown>).value_template as string,
+            /TUB_CLEAN.*통살균/,
+        )
+        assert.match(
+            (components.dryer_course as Record<string, unknown>).value_template as string,
+            /QUICKDRY.*급속 건조/,
+        )
+        assert.match((components.washer_error as Record<string, unknown>).value_template as string, /ERROR_IE.*오류 IE/)
         assert.equal(washerPower.optimistic, undefined)
         assert.equal(dryerPower.optimistic, undefined)
         assert.equal((components.washer_buzzer as Record<string, unknown>).entity_category, 'config')

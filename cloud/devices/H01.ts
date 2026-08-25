@@ -105,7 +105,7 @@ const DISPLAY_LABELS = {
     RINSING: '헹굼 중',
 }
 
-const OPERATION_LABELS = { start: '시작', stop: '정지', cancel: '취소', power_off: '전원 끄기' }
+const OPERATION_LABELS = { start: '시작', stop: '정지', cancel: '취소' }
 
 const DIAGNOSTIC_STAGES: Record<number, string> = {
     0x02: 'WASHING',
@@ -248,6 +248,7 @@ export default class Device extends AABBDevice {
                         state_topic: '$this/rinse_level',
                         command_topic: '$this/rinse_level/set',
                         name: '린스 투입량',
+                        entity_category: 'config',
                         min: 0,
                         max: 4,
                         step: 1,
@@ -259,6 +260,7 @@ export default class Device extends AABBDevice {
                         state_topic: '$this/salt_level',
                         command_topic: '$this/salt_level/set',
                         name: '물 경도',
+                        entity_category: 'config',
                         min: 0,
                         max: 4,
                         step: 1,
@@ -291,6 +293,7 @@ export default class Device extends AABBDevice {
                         value_template: displayValueTemplate(DISPLAY_LABELS),
                         command_template: commandValueTemplate(DISPLAY_LABELS),
                         name: '원격 제어 모드',
+                        entity_category: 'config',
                         icon: 'mdi:remote',
                     },
                     door: {
@@ -308,6 +311,7 @@ export default class Device extends AABBDevice {
                         state_topic: '$this/clean_reminder',
                         command_topic: '$this/clean_reminder/set',
                         name: '기계 청소 알림',
+                        entity_category: 'config',
                         payload_on: 'ON',
                         payload_off: 'OFF',
                         icon: 'mdi:lightbulb-on-outline',
@@ -345,6 +349,7 @@ export default class Device extends AABBDevice {
                         state_topic: '$this/end_alarm',
                         command_topic: '$this/end_alarm/set',
                         name: '종료 알림',
+                        entity_category: 'config',
                         payload_on: 'ON',
                         payload_off: 'OFF',
                         icon: 'mdi:bell-ring-outline',
@@ -358,6 +363,7 @@ export default class Device extends AABBDevice {
                         value_template: displayValueTemplate(DISPLAY_LABELS),
                         command_template: commandValueTemplate(DISPLAY_LABELS),
                         name: '차임 소리',
+                        entity_category: 'config',
                         icon: 'mdi:volume-high',
                     },
                     power: {
@@ -493,6 +499,12 @@ export default class Device extends AABBDevice {
                 downloaded_course: { platform: 'sensor' },
                 remaining_time: { platform: 'sensor' },
                 initial_time: { platform: 'sensor' },
+                rinse_level: { platform: 'number' },
+                salt_level: { platform: 'number' },
+                remote_mode: { platform: 'select' },
+                clean_reminder: { platform: 'switch' },
+                end_alarm: { platform: 'switch' },
+                buzzer: { platform: 'select' },
                 remote_steam: { platform: 'switch' },
                 remote_high_temp: { platform: 'switch' },
                 remote_extra_dry: { platform: 'switch' },

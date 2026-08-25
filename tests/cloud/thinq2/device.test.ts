@@ -6,9 +6,9 @@ import type { Broker } from '@/cloud/mqtt-broker'
 import { enableMockTimers, tickMockTimers } from '../../helpers/timers'
 
 describe('ThinQ2 time synchronization', () => {
-    test('encodes a one-based month in the appliance timezone', () => {
+    test('encodes the ThinQ zero-based month in UTC', () => {
         const result = timeSyncPayload(new Date('2026-08-14T23:59:58Z'), '+0900')
-        assert.deepEqual([...result], [26, 8, 15, 8, 59, 58, 6])
+        assert.deepEqual([...result], [26, 7, 14, 23, 59, 58, 5])
     })
 
     test('sends the current time when PAC_910604_WW completes provisioning', () => {

@@ -82,18 +82,18 @@ type DeviceAcceptorEvents = {
     dropDevice: (id: string) => void
 }
 
-export function timeSyncPayload(now: Date, timezone: string | undefined) {
-    const match = timezone?.match(/^([+-])(\d{2})(\d{2})$/)
-    const offsetMinutes = match ? (match[1] === '-' ? -1 : 1) * (Number(match[2]) * 60 + Number(match[3])) : 0
-    const local = new Date(now.getTime() + offsetMinutes * 60 * 1000)
+export function timeSyncPayload(now: Date, _timezone: string | undefined) {
+    // ThinQ's wire format is UTC and uses JavaScript's zero-based month.
+    // Converting it to appliance-local time or a one-based month makes PAC
+    // reject the response after a full controller reboot.
     return Buffer.from([
-        local.getUTCFullYear() % 100,
-        local.getUTCMonth() + 1,
-        local.getUTCDate(),
-        local.getUTCHours(),
-        local.getUTCMinutes(),
-        local.getUTCSeconds(),
-        local.getUTCDay(),
+        now.getUTCFullYear() % 100,
+        now.getUTCMonth(),
+        now.getUTCDate(),
+        now.getUTCHours(),
+        now.getUTCMinutes(),
+        now.getUTCSeconds(),
+        now.getUTCDay(),
     ])
 }
 
@@ -143,13 +143,13 @@ export class DeviceAcceptor extends TypedEmitter<DeviceAcceptorEvents> {
                     // when the device is demonstrably ready to receive it.
                     if (client.deployMsg?.kind === 'PAC_910604_WW' && !client.pacTimeSyncRetried) {
                         client.pacTimeSyncRetried = true
-                        this.timeSyncRequest(client)
+                        this.timeSyncRequest(client, 'first PAC packet')
                     }
                 }
             }
 
             if (payload.cmd === 'req_timesync' && client.deployMsg && payload.did === client.deployMsg.did) {
-                this.timeSyncRequest(client)
+                this.timeSyncRequest(client, 'device request')
             }
         }
 
@@ -203,7 +203,7 @@ export class DeviceAcceptor extends TypedEmitter<DeviceAcceptorEvents> {
         // Without an initial response its standby clock remains on the Wi-Fi
         // connection prompt even though MQTT provisioning has completed.
         if (meta.modelId === 'PAC_910604_WW') {
-            this.timeSyncRequest(client)
+            this.timeSyncRequest(client, 'provisioning')
             this.schedulePacTimeSync(client)
         }
     }
@@ -214,7 +214,7 @@ export class DeviceAcceptor extends TypedEmitter<DeviceAcceptorEvents> {
         const syncIfConnected = () => {
             const deviceId = client.deployMsg?.did
             if (!deviceId || !client.deviceObj || this.clientsById[deviceId] !== client) return
-            this.timeSyncRequest(client)
+            this.timeSyncRequest(client, 'scheduled retry')
         }
 
         client.pacTimeSyncTimeouts = PAC_TIME_SYNC_RETRY_DELAYS_MS.map((delay) => {
@@ -233,11 +233,13 @@ export class DeviceAcceptor extends TypedEmitter<DeviceAcceptorEvents> {
         client.pacTimeSyncInterval = undefined
     }
 
-    timeSyncRequest(client: ClientWithExtra) {
+    timeSyncRequest(client: ClientWithExtra, reason = 'unspecified') {
         const buf = timeSyncPayload(new Date(), client.deployMsg?.data?.appInfo?.timezone)
 
         const deviceId = client.deployMsg?.did
         if (!deviceId) return
+
+        log('status', deviceId, 'time sync response', reason, buf.toString('hex'))
 
         this.broker.publish(
             {

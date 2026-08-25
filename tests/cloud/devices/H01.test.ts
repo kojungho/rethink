@@ -30,6 +30,12 @@ describe('H01', () => {
         const components = ha.devices[DEVICE_ID].config!.components as Record<string, Record<string, unknown>>
 
         assert.equal(components.state.platform, 'sensor')
+        assert.equal(components.state.device_class, 'enum')
+        assert.deepEqual(components.state.options, ['OFF', 'INITIAL', 'RUNNING', 'PAUSE'])
+        assert.equal(components.course.device_class, 'enum')
+        assert.ok((components.course.options as string[]).includes('통살균'))
+        assert.equal(components.downloaded_course.device_class, 'enum')
+        assert.ok((components.downloaded_course.options as string[]).includes('MACHINE_CLEAN'))
         assert.equal(components.door.platform, 'binary_sensor')
         assert.equal(components.rinse_level.platform, 'number')
         assert.equal(components.auto_dry, undefined)
@@ -155,6 +161,16 @@ describe('H01', () => {
         assert.equal(properties.buzzer, 'HIGH')
         assert.equal(properties.downloaded_course, 'GLASS_AND_WINE')
         assert.equal(properties.extra_rinse, 3)
+    })
+
+    test('reports the panel-off 0x04 state as OFF instead of standby', () => {
+        const { ha, thinq } = makeDevice()
+        const current = Buffer.alloc(24)
+        current[0] = 0x04
+        thinq.emit('data', frame(Buffer.concat([Buffer.from([0x32, 0xec]), statusBlock(), statusBlock(current)])))
+
+        assert.equal(ha.devices[DEVICE_ID].properties.state, 'OFF')
+        assert.equal(ha.devices[DEVICE_ID].properties.power, 'OFF')
     })
 
     test('decodes 0x323e energy and 0x32cf diagnostic packets', () => {

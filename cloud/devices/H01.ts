@@ -12,8 +12,12 @@ const STATES: Record<number, string> = {
     0x01: 'INITIAL',
     0x02: 'RUNNING',
     0x03: 'PAUSE',
-    0x04: 'STANDBY',
+    // H01 reports 0x04 while its panel power is off. ThinQ exposes the same
+    // state as POWER_OFF, so keep the user-facing value consistent with the
+    // power entity instead of presenting an ambiguous standby state.
+    0x04: 'OFF',
 }
+const STATE_OPTIONS = [...new Set(Object.values(STATES))]
 
 const COURSES: Record<number, string> = {
     0x00: '꺼짐',
@@ -47,6 +51,7 @@ const DOWNLOADED_COURSES: Record<number, string> = {
     0x0d: 'MACHINE_CLEAN',
     0x0f: 'PLASTIC_DISHES',
 }
+const DOWNLOADED_COURSE_OPTIONS = ['NONE', ...Object.values(DOWNLOADED_COURSES)]
 
 const DIAGNOSTIC_STAGES: Record<number, string> = {
     0x02: 'WASHING',
@@ -94,6 +99,8 @@ export default class Device extends AABBDevice {
                         state_topic: '$this/state',
                         name: '현재 상태',
                         icon: 'mdi:dishwasher',
+                        device_class: 'enum',
+                        options: STATE_OPTIONS,
                     },
                     course: {
                         platform: 'sensor',
@@ -101,6 +108,8 @@ export default class Device extends AABBDevice {
                         state_topic: '$this/course',
                         name: '코스',
                         icon: 'mdi:dishwasher',
+                        device_class: 'enum',
+                        options: Object.values(COURSES),
                     },
                     steam: {
                         platform: 'binary_sensor',
@@ -194,6 +203,8 @@ export default class Device extends AABBDevice {
                         state_topic: '$this/downloaded_course',
                         name: '다운로드 코스',
                         icon: 'mdi:download',
+                        device_class: 'enum',
+                        options: DOWNLOADED_COURSE_OPTIONS,
                     },
                     remote_mode: {
                         platform: 'select',
@@ -600,17 +611,7 @@ export default class Device extends AABBDevice {
             (this.remoteStart.course === REMOTE_COURSES.DOWNLOAD_CYCLE ? 0x40 : 0)
 
         this.send(
-            Buffer.from([
-                0xf0,
-                0x26,
-                0x10,
-                this.remoteStart.course,
-                this.remoteStart.delay,
-                0x00,
-                0x00,
-                rinse,
-                0x00,
-            ]),
+            Buffer.from([0xf0, 0x26, 0x10, this.remoteStart.course, this.remoteStart.delay, 0x00, 0x00, rinse, 0x00]),
         )
     }
 

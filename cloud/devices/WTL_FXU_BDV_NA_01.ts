@@ -504,6 +504,8 @@ export default class Device extends AABBDevice {
                         state_topic: '$this/washer/state',
                         name: '세탁기 상태',
                         icon: 'mdi:washing-machine',
+                        device_class: 'enum',
+                        options: Object.values(WASHER_STATES),
                     },
                     washer_soil_wash: {
                         platform: 'sensor',
@@ -661,6 +663,8 @@ export default class Device extends AABBDevice {
                         state_topic: '$this/dryer/state',
                         name: '건조기 상태',
                         icon: 'mdi:tumble-dryer',
+                        device_class: 'enum',
+                        options: Object.values(DRYER_STATES),
                     },
                     dryer_dry_level: {
                         platform: 'sensor',

@@ -109,8 +109,18 @@ describe(MODEL_ID, () => {
         assert.ok((init_lcd.options as string[]).includes('Christmas'))
         const washerPower = components.washer_power as Record<string, unknown>
         const dryerPower = components.dryer_power as Record<string, unknown>
+        const washerState = components.washer_state as Record<string, unknown>
+        const dryerState = components.dryer_state as Record<string, unknown>
         assert.equal(washerPower.platform, 'switch')
         assert.equal(dryerPower.platform, 'switch')
+        assert.equal(washerState.device_class, 'enum')
+        assert.ok((washerState.options as string[]).includes('POWEROFF'))
+        assert.ok((washerState.options as string[]).includes('TUB_CLEANING'))
+        assert.ok((washerState.options as string[]).includes('END_WAITING'))
+        assert.equal(dryerState.device_class, 'enum')
+        assert.ok((dryerState.options as string[]).includes('POWEROFF'))
+        assert.ok((dryerState.options as string[]).includes('DRUM_CARE'))
+        assert.ok((dryerState.options as string[]).includes('AI_LOAD_CHECK'))
         assert.equal(washerPower.optimistic, undefined)
         assert.equal(dryerPower.optimistic, undefined)
         assert.equal((components.washer_buzzer as Record<string, unknown>).entity_category, 'config')

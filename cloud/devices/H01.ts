@@ -1,7 +1,7 @@
 import HADevice from './base'
 import AABBDevice from './aabb_device'
 import { Device as Thinq2Device } from '../thinq2/device'
-import { type Connection } from '../homeassistant'
+import { type Connection, type DeviceDiscovery } from '../homeassistant'
 import { type Metadata } from '../thinq'
 import { allowExtendedType } from '@/util/casting'
 import { commandValueTemplate, displayOptions, displayValueTemplate } from './display_localization'

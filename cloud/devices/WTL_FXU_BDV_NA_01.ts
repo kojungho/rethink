@@ -1,6 +1,6 @@
 import HADevice from './base'
 import { Device as Thinq2Device } from '../thinq2/device'
-import { type Connection, type DeviceDiscovery } from '../homeassistant'
+import { type ComponentInfo, type Connection, type DeviceDiscovery } from '../homeassistant'
 import { type Metadata } from '../thinq'
 import { allowExtendedType } from '@/util/casting'
 import { commandValueTemplate, displayOptions, displayValueTemplate, type DisplayLabels } from './display_localization'
@@ -1151,7 +1151,7 @@ export default class Device extends AABBDevice {
         if (!this.config) return
 
         const includeComponent = (id: string) => id.startsWith(`${unit}_`) || (unit === 'washer' && id === 'init_lcd')
-        const components = Object.fromEntries(
+        const components: Record<string, ComponentInfo> = Object.fromEntries(
             Object.entries(this.config.components)
                 .filter(([id]) => includeComponent(id))
                 .map(([id, component]) => {
@@ -1161,7 +1161,7 @@ export default class Device extends AABBDevice {
                             typeof component.name === 'string' && component.name.startsWith(namePrefix)
                                 ? component.name.slice(namePrefix.length)
                                 : component.name,
-                    } as Record<string, unknown>
+                    } as ComponentInfo & Record<string, unknown>
                     if (LOCALIZED_COMPONENTS.has(id)) {
                         if (localized.state_topic) localized.value_template = displayValueTemplate(ALL_DISPLAY_LABELS)
                         if (Array.isArray(localized.options)) {

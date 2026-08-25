@@ -4,6 +4,7 @@ import { Device as Thinq2Device } from '../thinq2/device'
 import { type Connection } from '../homeassistant'
 import { type Metadata } from '../thinq'
 import { allowExtendedType } from '@/util/casting'
+import { commandValueTemplate, displayOptions, displayValueTemplate } from './display_localization'
 
 const STATUS_DATA_LENGTH = 24
 
@@ -31,6 +32,20 @@ const STATE_OPTIONS = [
     'DRYING',
     'CANCEL',
 ]
+const STATE_LABELS = {
+    OFF: '꺼짐',
+    INITIAL: '초기화',
+    RUNNING: '운전 중',
+    PAUSE: '일시정지',
+    END: '종료',
+    RESERVED: '예약',
+    NIGHT_DRY: '야간 건조',
+    ERROR: '오류',
+    RINSING: '헹굼 중',
+    POWER_FAIL: '정전',
+    DRYING: '건조 중',
+    CANCEL: '취소',
+}
 
 const COURSES: Record<number, string> = {
     0x00: '꺼짐',
@@ -65,6 +80,32 @@ const DOWNLOADED_COURSES: Record<number, string> = {
     0x0f: 'PLASTIC_DISHES',
 }
 const DOWNLOADED_COURSE_OPTIONS = ['NONE', ...Object.values(DOWNLOADED_COURSES)]
+
+const DISPLAY_LABELS = {
+    NONE: '선택 안 함',
+    POTS_AND_PANS: '냄비와 팬',
+    GLASS_AND_WINE: '유리잔과 와인잔',
+    GRILLED_DISHES: '구이 요리',
+    GREASY_DISHES: '기름진 식기',
+    BAKED_ON_DISHES: '눌어붙은 식기',
+    FISH_DISHES: '생선 요리',
+    DELICATE: '섬세 식기',
+    RINSE_ONLY: '헹굼 전용',
+    MACHINE_CLEAN: '기계 세척',
+    PLASTIC_DISHES: '플라스틱 식기',
+    OFF: '꺼짐',
+    ONE_TIME: '한 번',
+    ALWAYS: '항상',
+    LOW: '작게',
+    HIGH: '크게',
+    AUTO: '자동',
+    ONE_HOUR: '1시간',
+    DOWNLOAD_CYCLE: '다운로드 코스',
+    WASHING: '세척 중',
+    RINSING: '헹굼 중',
+}
+
+const OPERATION_LABELS = { start: '시작', stop: '정지', cancel: '취소', power_off: '전원 끄기' }
 
 const DIAGNOSTIC_STAGES: Record<number, string> = {
     0x02: 'WASHING',
@@ -114,7 +155,8 @@ export default class Device extends AABBDevice {
                         name: '현재 상태',
                         icon: 'mdi:dishwasher',
                         device_class: 'enum',
-                        options: STATE_OPTIONS,
+                        options: displayOptions(STATE_OPTIONS, STATE_LABELS),
+                        value_template: displayValueTemplate(STATE_LABELS),
                     },
                     course: {
                         platform: 'sensor',
@@ -237,14 +279,17 @@ export default class Device extends AABBDevice {
                         name: '다운로드 코스',
                         icon: 'mdi:download',
                         device_class: 'enum',
-                        options: DOWNLOADED_COURSE_OPTIONS,
+                        options: displayOptions(DOWNLOADED_COURSE_OPTIONS, DISPLAY_LABELS),
+                        value_template: displayValueTemplate(DISPLAY_LABELS),
                     },
                     remote_mode: {
                         platform: 'select',
                         unique_id: '$deviceid-remote-mode',
                         state_topic: '$this/remote_mode',
                         command_topic: '$this/remote_mode/set',
-                        options: REMOTE_MODE_OPTIONS,
+                        options: displayOptions(REMOTE_MODE_OPTIONS, DISPLAY_LABELS),
+                        value_template: displayValueTemplate(DISPLAY_LABELS),
+                        command_template: commandValueTemplate(DISPLAY_LABELS),
                         name: '원격 제어 모드',
                         icon: 'mdi:remote',
                     },
@@ -309,7 +354,9 @@ export default class Device extends AABBDevice {
                         unique_id: '$deviceid-buzzer',
                         state_topic: '$this/buzzer',
                         command_topic: '$this/buzzer/set',
-                        options: BUZZER_OPTIONS,
+                        options: displayOptions(BUZZER_OPTIONS, DISPLAY_LABELS),
+                        value_template: displayValueTemplate(DISPLAY_LABELS),
+                        command_template: commandValueTemplate(DISPLAY_LABELS),
                         name: '차임 소리',
                         icon: 'mdi:volume-high',
                     },
@@ -327,7 +374,8 @@ export default class Device extends AABBDevice {
                         platform: 'select',
                         unique_id: '$deviceid-operation',
                         command_topic: '$this/operation/set',
-                        options: ['start', 'stop', 'cancel', 'power_off'],
+                        options: displayOptions(Object.keys(OPERATION_LABELS), OPERATION_LABELS),
+                        command_template: commandValueTemplate(OPERATION_LABELS),
                         name: '운전',
                         icon: 'mdi:play-pause',
                     },
@@ -360,7 +408,9 @@ export default class Device extends AABBDevice {
                         unique_id: '$deviceid-remote-course',
                         state_topic: '$this/remote_course',
                         command_topic: '$this/remote_course/set',
-                        options: Object.keys(REMOTE_COURSES),
+                        options: displayOptions(Object.keys(REMOTE_COURSES), DISPLAY_LABELS),
+                        value_template: displayValueTemplate(DISPLAY_LABELS),
+                        command_template: commandValueTemplate(DISPLAY_LABELS),
                         optimistic: true,
                         name: '원격 시작 코스',
                         icon: 'mdi:dishwasher',
@@ -421,6 +471,7 @@ export default class Device extends AABBDevice {
                         unique_id: '$deviceid-diagnostic-stage',
                         state_topic: '$this/diagnostic_stage',
                         name: '진단 단계',
+                        value_template: displayValueTemplate(DISPLAY_LABELS),
                         entity_category: 'diagnostic',
                         icon: 'mdi:progress-wrench',
                     },

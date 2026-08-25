@@ -270,7 +270,7 @@ export default class Device extends TLVDevice {
 
     initMakeSetConfig() {
         const config: DeviceDiscovery & { components: { climate: ClimateComponent } } = allowExtendedType({
-            ...HADevice.config(this.meta, { name: 'LG Air Conditioner' }),
+            ...HADevice.config(this.meta, { name: '에어컨' }),
             components: {
                 climate: {
                     platform: 'climate',
@@ -505,7 +505,7 @@ export default class Device extends TLVDevice {
             })
         }
 
-        this.addOptionalSensorField(config, 0x221, 'error', 'Error code', 'mdi:alert')
+        this.addOptionalSensorField(config, 0x221, 'error', '오류 코드', 'mdi:alert')
         this.addOptionalSensorField(config, 0x333, 'pm1', 'PM1.0', 'mdi:molecule', {
             unit_of_measurement: 'μg/m³',
             state_class: 'measurement',
@@ -592,7 +592,7 @@ export default class Device extends TLVDevice {
             config,
             0x32e,
             'capacity',
-            'Capacity nominal',
+            '정격 용량',
             undefined,
             {
                 device_class: 'power',
@@ -612,7 +612,7 @@ export default class Device extends TLVDevice {
          * IDU connected to the same ODU always reports correct EEV values.
          * None of tested IDUs seem to usually notify by itself when this value changes.
          */
-        this.addOptionalSensorField(config, 0x330, 'eev', 'EEV opening', 'mdi:valve', {
+        this.addOptionalSensorField(config, 0x330, 'eev', '전자 팽창 밸브 개도', 'mdi:valve', {
             state_class: 'measurement',
             suggested_display_precision: 0,
         })
@@ -629,7 +629,7 @@ export default class Device extends TLVDevice {
             config,
             0x2f9,
             'pipeintemp',
-            'Pipe liquid temperature',
+            '액관 온도',
             'mdi:pipe',
             (raw) => racPipeTemp[255 - raw],
         )
@@ -637,7 +637,7 @@ export default class Device extends TLVDevice {
             config,
             0x2fa,
             'pipeouttemp',
-            'Pipe gas temperature',
+            '가스관 온도',
             'mdi:pipe',
             (raw) => racPipeTemp[255 - raw],
         )
@@ -646,7 +646,7 @@ export default class Device extends TLVDevice {
             config,
             [0x7a, 0x32c],
             'oduhextemp',
-            'ODU HEX temperature', // "HEX" = "heat exchanger"
+            '실외기 열교환기 온도',
             'mdi:heating-coil',
             (raw) => racPipeTemp[255 - raw],
         )
@@ -654,7 +654,7 @@ export default class Device extends TLVDevice {
             config,
             0x332,
             'oduairtemp',
-            'ODU air temperature',
+            '실외기 공기 온도',
             'mdi:thermometer-lines',
             (raw) => racAirTemp[255 - raw],
         )
@@ -674,7 +674,7 @@ export default class Device extends TLVDevice {
             config,
             0x331,
             'fanrpm',
-            'Fan RPM',
+            '팬 회전 속도',
             'mdi:fan',
             {
                 state_class: 'measurement',
@@ -704,12 +704,12 @@ export default class Device extends TLVDevice {
 
         if (this.raw_clip_state[0x2d3] & 1) {
             // 15h - displayed in hex as "FH"
-            this.addTimerField(config, 0x21a, 'sleeptimer', 'Sleep timer', 'mdi:bed-clock', 15)
+            this.addTimerField(config, 0x21a, 'sleeptimer', '취침 예약', 'mdi:bed-clock', 15)
         }
 
         if (this.raw_clip_state[0x2d3] & 4) {
-            this.addTimerField(config, 0x21c, 'starttimer', 'Turn-on timer', 'mdi:timer-play', 24)
-            this.addTimerField(config, 0x21b, 'stoptimer', 'Turn-off timer', 'mdi:timer-stop', 24)
+            this.addTimerField(config, 0x21c, 'starttimer', '켜짐 예약', 'mdi:timer-play', 24)
+            this.addTimerField(config, 0x21b, 'stoptimer', '꺼짐 예약', 'mdi:timer-stop', 24)
         }
 
         if (this.raw_clip_state[0x2cc] & 2) {
@@ -746,7 +746,7 @@ export default class Device extends TLVDevice {
             const compADryRem = {
                 platform: 'sensor',
                 unique_id: '$deviceid-autodryremain',
-                name: 'Auto dry remaining',
+                name: 'AI 건조 남은 시간',
                 icon: 'mdi:hair-dryer-outline',
                 unit_of_measurement: '%',
                 suggested_display_precision: 0,
@@ -823,7 +823,7 @@ export default class Device extends TLVDevice {
                 platform: 'sensor',
                 unique_id: '$deviceid-filterused',
                 state_topic: '$this/filterused',
-                name: 'Filter used time',
+                name: '필터 사용 시간',
                 icon: 'mdi:air-filter',
                 device_class: 'duration',
                 unit_of_measurement: 'h',
@@ -835,7 +835,7 @@ export default class Device extends TLVDevice {
                 platform: 'sensor',
                 unique_id: '$deviceid-filterlife',
                 state_topic: '$this/filterlife',
-                name: 'Filter life time',
+                name: '필터 수명',
                 icon: 'mdi:air-filter',
                 device_class: 'duration',
                 unit_of_measurement: 'h',
@@ -846,7 +846,7 @@ export default class Device extends TLVDevice {
                 platform: 'sensor',
                 unique_id: '$deviceid-filterchangeddate',
                 state_topic: '$this/filterchangeddate',
-                name: 'Filter usage last reset',
+                name: '마지막 필터 초기화 날짜',
                 icon: 'mdi:calendar-refresh-outline',
                 device_class: 'date',
                 entity_category: 'diagnostic',
@@ -857,7 +857,7 @@ export default class Device extends TLVDevice {
                 platform: 'button',
                 unique_id: '$deviceid-filterreset',
                 command_topic: '$this/filterreset/set',
-                name: 'Reset filter usage',
+                name: '필터 사용량 초기화',
                 icon: 'mdi:calendar-refresh-outline',
                 entity_category: 'diagnostic',
             }
@@ -883,7 +883,7 @@ export default class Device extends TLVDevice {
                 platform: 'sensor',
                 unique_id: '$deviceid-energy_current',
                 state_topic: '$this/energy_current',
-                name: 'Power',
+                name: '소비 전력',
                 device_class: 'power',
                 unit_of_measurement: 'W',
                 state_class: 'measurement',

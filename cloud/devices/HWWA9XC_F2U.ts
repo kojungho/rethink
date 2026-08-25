@@ -4,6 +4,7 @@ import { Device as Thinq2Device } from '../thinq2/device'
 import { type Connection } from '../homeassistant'
 import { type Metadata } from '../thinq'
 import { allowExtendedType } from '@/util/casting'
+import { displayValueTemplate } from './display_localization'
 
 const STATUS_DATA_LENGTH = 0x25
 
@@ -19,6 +20,16 @@ const STATES: Record<number, string> = {
 const JOB_MODES: Record<number, string> = {
     0x01: 'OFF',
     0x03: 'NORMAL',
+}
+
+const DISPLAY_LABELS = {
+    OFF: '꺼짐',
+    INITIAL: '초기화',
+    RUNNING: '작동 중',
+    CHARGING: '충전 중',
+    CHARGED: '충전 완료',
+    IDLE: '대기',
+    NORMAL: '표준',
 }
 
 const SUCTION_POWER: Record<number, string> = {
@@ -111,7 +122,7 @@ export default class Device extends AABBDevice {
         super(HA, thinq)
         this.setConfig(
             allowExtendedType({
-                ...HADevice.config(meta, { name: 'LG Stick Cleaner' }),
+                ...HADevice.config(meta, { name: '스틱청소기' }),
                 components: {
                     current_state: {
                         platform: 'sensor',
@@ -119,6 +130,7 @@ export default class Device extends AABBDevice {
                         state_topic: '$this/current_state',
                         name: '현재 상태',
                         icon: 'mdi:vacuum-outline',
+                        value_template: displayValueTemplate(DISPLAY_LABELS),
                     },
                     operation_mode: {
                         platform: 'sensor',
@@ -126,6 +138,7 @@ export default class Device extends AABBDevice {
                         state_topic: '$this/operation_mode',
                         name: '작동 모드',
                         icon: 'mdi:vacuum',
+                        value_template: displayValueTemplate(DISPLAY_LABELS),
                     },
                     suction_power: {
                         platform: 'select',

@@ -61,7 +61,7 @@ export default class Device extends RACDevice {
         // Remove the legacy RAC switch discovery before replacing the same
         // component keys with PAC brightness selects.
         this.HA.publishConfig(this.id, {
-            ...HADevice.config(meta, { name: 'LG Air Conditioner' }),
+            ...HADevice.config(meta, { name: '에어컨' }),
             components: {
                 display_light: { platform: 'switch' } as unknown as DeviceDiscovery['components'][string],
                 button_sound: { platform: 'switch' } as unknown as DeviceDiscovery['components'][string],

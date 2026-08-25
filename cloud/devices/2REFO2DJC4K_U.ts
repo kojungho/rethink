@@ -14,7 +14,7 @@ export default class Device extends AABBDevice {
 
     constructor(HA: Connection, thinq: Thinq2Device, meta: Metadata) {
         super(HA, thinq)
-        this.deviceConfig = HADevice.config(meta, { name: 'LG Smart Fridge' })
+        this.deviceConfig = HADevice.config(meta, { name: '냉장고' })
         this.HA.publishConfig(this.id, {
             ...this.deviceConfig,
             components: {

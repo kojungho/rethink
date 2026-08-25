@@ -127,8 +127,8 @@ describe(MODEL_ID, () => {
         const init_lcd = components.init_lcd as Record<string, unknown>
         assert.equal(init_lcd.platform, 'select')
         assert.equal(init_lcd.entity_category, 'config')
-        assert.ok((init_lcd.options as string[]).includes('Default'))
-        assert.ok((init_lcd.options as string[]).includes('Christmas'))
+        assert.ok((init_lcd.options as string[]).includes('기본'))
+        assert.ok((init_lcd.options as string[]).includes('크리스마스'))
         const washerPower = components.washer_power as Record<string, unknown>
         const dryerPower = components.dryer_power as Record<string, unknown>
         const washerState = components.washer_state as Record<string, unknown>
@@ -137,28 +137,25 @@ describe(MODEL_ID, () => {
         assert.equal(dryerPower.platform, 'switch')
         assert.equal(washerState.device_class, 'enum')
         assert.equal(washerState.name, '현재 상태')
-        assert.ok((washerState.options as string[]).includes('POWEROFF'))
-        assert.ok((washerState.options as string[]).includes('TUB_CLEANING'))
-        assert.ok((washerState.options as string[]).includes('END_WAITING'))
+        assert.ok((washerState.options as string[]).includes('전원 꺼짐'))
+        assert.ok((washerState.options as string[]).includes('통살균 중'))
+        assert.ok((washerState.options as string[]).includes('종료'))
         assert.equal(dryerState.device_class, 'enum')
         assert.equal(dryerState.name, '현재 상태')
-        assert.ok((dryerState.options as string[]).includes('POWEROFF'))
-        assert.ok((dryerState.options as string[]).includes('DRUM_CARE'))
-        assert.ok((dryerState.options as string[]).includes('AI_LOAD_CHECK'))
+        assert.ok((dryerState.options as string[]).includes('전원 꺼짐'))
+        assert.ok((dryerState.options as string[]).includes('드럼 케어'))
+        assert.ok((dryerState.options as string[]).includes('AI 세탁물 확인'))
         assert.equal((components.washer_remaining_time as Record<string, unknown>).device_class, 'timestamp')
         assert.equal((components.dryer_remaining_time as Record<string, unknown>).device_class, 'timestamp')
         assert.equal((components.washer_delay_ends_at as Record<string, unknown>).device_class, 'timestamp')
         assert.equal((components.dryer_delay_ends_at as Record<string, unknown>).device_class, 'timestamp')
         assert.deepEqual((components.washer_operation as Record<string, unknown>).options, [
-            'start',
-            'stop',
-            'power_off',
+            '시작',
+            '정지',
+            '전원 끄기',
         ])
-        assert.deepEqual((components.dryer_operation as Record<string, unknown>).options, [
-            'start',
-            'stop',
-            'power_off',
-        ])
+        assert.deepEqual((components.dryer_operation as Record<string, unknown>).options, ['시작', '정지', '전원 끄기'])
+        assert.match((components.washer_operation as Record<string, unknown>).command_template as string, /시작/)
         assert.equal(washerPower.optimistic, undefined)
         assert.equal(dryerPower.optimistic, undefined)
         assert.equal((components.washer_buzzer as Record<string, unknown>).entity_category, 'config')

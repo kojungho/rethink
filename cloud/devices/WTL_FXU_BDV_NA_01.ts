@@ -3,6 +3,7 @@ import { Device as Thinq2Device } from '../thinq2/device'
 import { type Connection, type DeviceDiscovery } from '../homeassistant'
 import { type Metadata } from '../thinq'
 import { allowExtendedType } from '@/util/casting'
+import { commandValueTemplate, displayOptions, displayValueTemplate, type DisplayLabels } from './display_localization'
 import AABBDevice from './aabb_device'
 
 const WASHER_UNIT = 0x33
@@ -498,6 +499,197 @@ const INIT_LCD_THEMES: Record<number, string> = {
     0x0c: 'None',
 }
 
+const OPERATION_LABELS = { start: '시작', stop: '정지', power_off: '전원 끄기' }
+
+const STATE_LABELS: DisplayLabels = {
+    POWEROFF: '전원 꺼짐',
+    INITIAL: '초기화',
+    PAUSE: '일시정지',
+    DETECTING: '감지 중',
+    DISPLAY_LOAD: '세탁물 표시',
+    ADD_DRAIN: '추가 배수',
+    DETERGENT_AMOUNT: '세제량 확인',
+    RESERVED: '예약',
+    SOAK: '불림',
+    PREWASH: '애벌세탁',
+    RUNNING: '운전 중',
+    RINSING: '헹굼 중',
+    RINSEHOLD: '헹굼 대기',
+    SPINNING: '탈수 중',
+    DRYING: '건조 중',
+    END: '종료',
+    COOLDOWN: '냉각 중',
+    COOLFAN: '송풍 냉각',
+    STEAM_SOFTENER: '스팀 섬유유연',
+    REFRESHING: '리프레시 중',
+    ERROR: '오류',
+    ERROR_AUTO_OFF: '오류 후 자동 꺼짐',
+    SHOES_MODULE: '신발 모듈',
+    DOING_DIAGNOSIS: '진단 중',
+    DOING_FIRM_UPDATE: '펌웨어 업데이트 중',
+    FROZEN_PREVENT_INITIAL: '동결 방지 초기화',
+    FROZEN_PREVENT_PAUSE: '동결 방지 일시정지',
+    FROZEN_PREVENT_RUNNING: '동결 방지 운전 중',
+    SERVICE: '서비스',
+    TEST: '시험',
+    AUTOTEST: '자동 시험',
+    FIRMWARE_UPDATE: '펌웨어 업데이트',
+    AUDIBLE_DIAGNOSIS: '소리 진단',
+    AUTO_DT_OPEN_PAUSE: '자동 문 열림 대기',
+    CONFIRM_START_FOR_CONTROL: '시작 확인 대기',
+    CLOTHING_RECOGNITION: '의류 감지 중',
+    DETERGENT_INPUT: '세제 투입',
+    SOFTENER_INPUT: '섬유유연제 투입',
+    POLLUTION_DETECTING: '오염도 감지 중',
+    TUB_CLEANING: '통살균 중',
+    END_REMOTE_MAINTAIN_ON: '종료',
+    STEAM: '스팀 중',
+    LAUNDRYCARE: '세탁물 케어',
+    EZDISPENSE_CLEANING: '자동 세제함 세척',
+    END_WAITING: '종료',
+    COOLING: '냉각 중',
+    WRINKLECARE: '구김 방지',
+    DELAYLOAD: '예약 대기',
+    SPINREERVE: '탈수 예약',
+    CONDENSER_CLEAN: '콘덴서 세척',
+    BEDDINGBRUSHING: '침구 털기',
+    DRY_REFRESHING: '건조 리프레시',
+    ALLERGYCARE: '알레르기 케어',
+    CONDENSERCARE: '콘덴서 케어',
+    DRYREADY: '건조 준비',
+    DEHUMIDIFICATION: '제습 중',
+    DEHUMIDIFICATION_END: '제습 종료',
+    DRUM_CARE: '드럼 케어',
+    AI_LOAD_CHECK: 'AI 세탁물 확인',
+}
+
+function structuredLabel(value: string) {
+    if (/^NO_/.test(value) || value === 'NOT_SELECTED' || value === 'N/A') return '선택 안 함'
+    if (value === 'NONE') return '없음'
+    if (value === 'LOAD_AUTO_DETECT') return '자동 감지'
+    const temp = value.match(/^TEMP_(\d+)$/)
+    if (temp) return `${temp[1]}℃`
+    const rinse = value.match(/^RINSE_(\d+)(_SAFE)?$/)
+    if (rinse) return `${rinse[1]}회${rinse[2] ? ' 안심헹굼' : ''}`
+    const spin = value.match(/^SPIN_(\d+)$/)
+    if (spin) return `${spin[1]} rpm`
+    const soak = value.match(/^SOAK_(\d+)$/)
+    if (soak) return `${soak[1]}분`
+    const water = value.match(/^WATERLEVEL_(\d+)$/)
+    if (water) return `${water[1]}단계`
+    const load = value.match(/^LOAD_LEVEL_(\d+)$/)
+    if (load) return `${load[1]}단계`
+    const item = value.match(/^LOADITEM_(\d+)$/)
+    if (item) return `종류 ${item[1]}`
+    const timed = value.match(/^TIMEDRY_(\d+)$/)
+    if (timed) return `${timed[1]}분`
+    return value
+}
+
+const DISPLAY_LABELS: DisplayLabels = {
+    ...STATE_LABELS,
+    ...Object.fromEntries(
+        [
+            ...Object.values(WASHER_TEMPS),
+            ...Object.values(WASHER_SOIL_WASH),
+            ...Object.values(WASHER_RINSE),
+            ...Object.values(WASHER_SPIN),
+            ...Object.values(WASHER_SOAK),
+            ...Object.values(WASHER_WATER_LEVEL),
+            ...Object.values(WASHER_LOAD_ITEM),
+            ...Object.values(WASHER_LOAD_LEVEL),
+            ...Object.values(WASHER_RINSE_COUNT),
+            ...Object.values(DRYER_TEMP),
+            ...Object.values(DRYER_TIME_DRY),
+        ].map((value) => [value, structuredLabel(value)]),
+    ),
+    Off: '꺼짐',
+    Low: '작게',
+    Medium: '보통',
+    High: '크게',
+    'Very High': '매우 크게',
+    Default: '기본',
+    'Winter 1': '겨울 1',
+    'Winter 2': '겨울 2',
+    'Winter 3': '겨울 3',
+    'Spring 1': '봄 1',
+    'Spring 2': '봄 2',
+    'Summer 1': '여름 1',
+    'Summer 2': '여름 2',
+    'Fall 1': '가을 1',
+    Halloween: '할로윈',
+    'New Years': '새해',
+    Christmas: '크리스마스',
+    None: '없음',
+    DAMP: '약하게',
+    LESS: '조금 약하게',
+    NORMAL: '표준',
+    MORE: '조금 강하게',
+    VERY: '강하게',
+    LEVEL_1: '1단계',
+    LEVEL_2: '2단계',
+    TUB_CLEAN: '통살균',
+    REFRESH: '리프레시',
+    TOWELS: '타월',
+    BEDDING: '침구',
+    DELICATES: '섬세',
+    WOOL: '울',
+    QUICKDRY: '급속 건조',
+    COOLAIR: '송풍',
+    WARMAIR: '온풍',
+    AI_COURSE: 'AI 코스',
+    SILENT: '조용 건조',
+    CLOTHCARE: '의류 케어',
+    TEMP_TAP_COLD: '냉수',
+    TEMP_COLD: '찬물',
+    TEMP_WARM: '미온수',
+    TEMP_HOT: '온수',
+    TEMP_EXTRA_HOT: '고온수',
+    SOILWASH_LIGHT: '약하게',
+    SOILWASH_LIGHT_NORMAL: '약간 약하게',
+    SOILWASH_NORMAL: '표준',
+    SOILWASH_NORMAL_HEAVY: '약간 강하게',
+    SOILWASH_HEAVY: '강하게',
+    SOILWASH_PREWASH: '애벌세탁',
+    SOILWASH_SOAKING: '불림',
+    SOILWASH_TURBO_WASH: '터보워시',
+    RINSE_PLUS: '헹굼 추가',
+    RINSE_PLUS2: '헹굼 2회 추가',
+    SPIN_MAX: '최강',
+    SPIN_DRAIN_ONLY: '배수 전용',
+    SPIN_LOW: '약',
+    SPIN_HIGH: '강',
+    SPIN_EXTRA_HIGH: '최강',
+}
+
+const ALL_DISPLAY_LABELS = { ...DISPLAY_LABELS, ...OPERATION_LABELS }
+const LOCALIZED_COMPONENTS = new Set([
+    'washer_state',
+    'washer_soil_wash',
+    'washer_rinse',
+    'washer_spin',
+    'washer_soak',
+    'washer_water_level',
+    'washer_load_item',
+    'washer_load_level',
+    'washer_rinse_count',
+    'washer_temp',
+    'washer_course',
+    'washer_buzzer',
+    'washer_error',
+    'washer_operation',
+    'dryer_course',
+    'dryer_state',
+    'dryer_dry_level',
+    'dryer_temp',
+    'dryer_time_dry',
+    'dryer_buzzer',
+    'dryer_error',
+    'dryer_duct_clogging',
+    'dryer_operation',
+    'init_lcd',
+])
+
 export default class Device extends AABBDevice {
     protected readonly dryerStateOffset: number = 53
     private remainingTargets: Partial<Record<'washer' | 'dryer', { minutes: number; timestamp: string }>> = {}
@@ -962,16 +1154,25 @@ export default class Device extends AABBDevice {
         const components = Object.fromEntries(
             Object.entries(this.config.components)
                 .filter(([id]) => includeComponent(id))
-                .map(([id, component]) => [
-                    id,
-                    {
+                .map(([id, component]) => {
+                    const localized = {
                         ...component,
                         name:
                             typeof component.name === 'string' && component.name.startsWith(namePrefix)
                                 ? component.name.slice(namePrefix.length)
                                 : component.name,
-                    },
-                ]),
+                    } as Record<string, unknown>
+                    if (LOCALIZED_COMPONENTS.has(id)) {
+                        if (localized.state_topic) localized.value_template = displayValueTemplate(ALL_DISPLAY_LABELS)
+                        if (Array.isArray(localized.options)) {
+                            localized.options = displayOptions(localized.options as string[], ALL_DISPLAY_LABELS)
+                        }
+                        if (localized.command_topic) {
+                            localized.command_template = commandValueTemplate(ALL_DISPLAY_LABELS)
+                        }
+                    }
+                    return [id, localized]
+                }),
         )
         const config: DeviceDiscovery = {
             ...this.config,

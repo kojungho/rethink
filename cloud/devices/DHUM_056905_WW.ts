@@ -44,7 +44,7 @@ export default class Device extends TLVDevice {
 
     constructor(HA: Connection, thinq: Thinq2Device, meta: Metadata) {
         super(HA, thinq)
-        this.deviceConfig = HADevice.config(meta, { name: 'LG Dehumidifier' })
+        this.deviceConfig = HADevice.config(meta, { name: '제습기' })
 
         // The previous version exposed this appliance as a `climate` component.
         // Device discovery keeps omitted components, so explicitly remove that
@@ -151,7 +151,7 @@ export default class Device extends TLVDevice {
                     child_lock: {
                         platform: 'binary_sensor',
                         unique_id: '$deviceid-child_lock',
-                        name: '차일드락',
+                        name: '버튼 잠금',
                         icon: 'mdi:lock',
                         state_topic: '$this/child_lock',
                         payload_on: 'ON',

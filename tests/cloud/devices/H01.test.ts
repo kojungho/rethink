@@ -82,6 +82,7 @@ describe('H01', () => {
         assert.deepEqual(configs[0].course, { platform: 'sensor' })
         assert.deepEqual(configs[0].downloaded_course, { platform: 'sensor' })
         assert.deepEqual(configs[0].remaining_time, { platform: 'sensor' })
+        assert.deepEqual(configs[0].initial_time, { platform: 'sensor' })
         assert.deepEqual(configs[0].remote_steam, { platform: 'switch' })
         assert.deepEqual(configs[0].remote_high_temp, { platform: 'switch' })
         assert.deepEqual(configs[0].remote_extra_dry, { platform: 'switch' })

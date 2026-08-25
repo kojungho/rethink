@@ -433,6 +433,7 @@ export default class Device extends AABBDevice {
                 course: { platform: 'sensor' },
                 downloaded_course: { platform: 'sensor' },
                 remaining_time: { platform: 'sensor' },
+                initial_time: { platform: 'sensor' },
                 remote_steam: { platform: 'switch' },
                 remote_high_temp: { platform: 'switch' },
                 remote_extra_dry: { platform: 'switch' },

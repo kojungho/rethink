@@ -153,6 +153,8 @@ describe(MODEL_ID, () => {
         assert.deepEqual(configs[0].dryer_buzzer, { platform: 'select' })
         assert.deepEqual(configs[0].washer_remaining_time, { platform: 'sensor' })
         assert.deepEqual(configs[0].dryer_remaining_time, { platform: 'sensor' })
+        assert.deepEqual(configs[0].washer_initial_time, { platform: 'sensor' })
+        assert.deepEqual(configs[0].dryer_initial_time, { platform: 'sensor' })
         assert.deepEqual(configs[0].washer_remote_maintain, { platform: 'switch' })
         assert.deepEqual(configs[0].dryer_remote_maintain, { platform: 'switch' })
         assert.deepEqual(configs[0].init_lcd, { platform: 'select' })

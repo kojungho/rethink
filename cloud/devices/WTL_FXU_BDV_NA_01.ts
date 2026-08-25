@@ -893,6 +893,8 @@ export default class Device extends AABBDevice {
                 dryer_buzzer: { platform: 'select' },
                 washer_remaining_time: { platform: 'sensor' },
                 dryer_remaining_time: { platform: 'sensor' },
+                washer_initial_time: { platform: 'sensor' },
+                dryer_initial_time: { platform: 'sensor' },
                 washer_remote_maintain: { platform: 'switch' },
                 dryer_remote_maintain: { platform: 'switch' },
                 init_lcd: { platform: 'select' },

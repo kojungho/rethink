@@ -59,12 +59,16 @@ export default class Device extends AABBDevice {
                 night_quiet_apply: { platform: 'button' } as unknown as DeviceDiscovery['components'][string],
             },
         })
-        // Remove the incorrect generic night-setting sensor from an earlier
-        // discovery payload.
+        // Remove components from earlier discovery payloads that are not valid
+        // for this model. A platform-only component is the device-discovery
+        // deletion form used before publishing the current complete config.
         this.HA.publishConfig(this.id, {
             ...this.deviceConfig,
             components: {
                 night_setting: { platform: 'sensor' } as unknown as DeviceDiscovery['components'][string],
+                selected_dispenser_type: {
+                    platform: 'sensor',
+                } as unknown as DeviceDiscovery['components'][string],
             },
         })
         this.setConfig(

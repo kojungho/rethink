@@ -122,11 +122,11 @@ describe('ThinQ2 time synchronization', () => {
         assert.equal(published.length, 1, 'initial synchronization')
 
         tickMockTimers(t, 60_000)
-        assert.equal(published.length, 4, 'three delayed synchronizations')
+        assert.equal(published.length, 5, 'three delayed synchronizations and the first periodic synchronization')
 
         acceptor.disconnected(client as never)
-        tickMockTimers(t, 6 * 60 * 60 * 1000)
-        assert.equal(published.length, 4, 'no synchronization after disconnect')
+        tickMockTimers(t, 60_000)
+        assert.equal(published.length, 5, 'no synchronization after disconnect')
     })
 })
 

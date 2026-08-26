@@ -74,8 +74,8 @@ type ClientWithExtra = Client & {
     pacTimeSyncInterval?: ReturnType<typeof setInterval>
 }
 
-const PAC_TIME_SYNC_RETRY_DELAYS_MS = [5_000, 15_000, 60_000] as const
-const PAC_TIME_SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000
+const PAC_TIME_SYNC_RETRY_DELAYS_MS = [5_000, 15_000, 30_000] as const
+const PAC_TIME_SYNC_INTERVAL_MS = 60_000
 
 type DeviceAcceptorEvents = {
     newDevice: (dev: Device) => void

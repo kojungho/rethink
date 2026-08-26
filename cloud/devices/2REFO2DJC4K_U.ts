@@ -254,14 +254,6 @@ export default class Device extends AABBDevice {
                         command_template: commandValueTemplate(DISPLAY_LABELS),
                         entity_category: 'config',
                     },
-                    selected_dispenser_type: {
-                        platform: 'sensor',
-                        icon: 'mdi:cup-water',
-                        name: '현재 선택 출수 종류',
-                        unique_id: '$deviceid-selected_dispenser_type',
-                        state_topic: '$this/selected_dispenser_type',
-                        value_template: displayValueTemplate(DISPLAY_LABELS),
-                    },
                     dispense_volume: {
                         platform: 'sensor',
                         device_class: 'volume',
@@ -362,7 +354,6 @@ export default class Device extends AABBDevice {
         if (publishAdvancedSettings) this.publishAdvancedSettings(curStatus)
         this.publishProperty('craft_ice', craftIceMode)
         this.publishProperty('dispenser_mode', dispenserMode)
-        this.publishProperty('selected_dispenser_type', dispenserMode)
         if (dispenseVolumeUnits in confirmedDispenseVolumes) {
             this.publishProperty('dispense_volume', confirmedDispenseVolumes[dispenseVolumeUnits])
         }

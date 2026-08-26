@@ -3,7 +3,6 @@ import assert from 'node:assert/strict'
 import { Device, DeviceAcceptor, timeSyncPayload } from '@/cloud/thinq2/device'
 import { EventEmitter } from 'node:events'
 import type { Broker } from '@/cloud/mqtt-broker'
-import { enableMockTimers, tickMockTimers } from '../../helpers/timers'
 
 describe('ThinQ2 time synchronization', () => {
     test('encodes the ThinQ zero-based month in UTC', () => {
@@ -11,7 +10,7 @@ describe('ThinQ2 time synchronization', () => {
         assert.deepEqual([...result], [26, 7, 14, 23, 59, 58, 5])
     })
 
-    test('sends the current time when PAC_910604_WW completes provisioning', () => {
+    test('does not send unsolicited time synchronization when PAC completes provisioning', () => {
         const published: Array<{ topic: string; payload: Buffer | string }> = []
         const broker = Object.assign(new EventEmitter(), {
             publish(packet: { topic: string; payload: Buffer | string }) {
@@ -35,13 +34,7 @@ describe('ThinQ2 time synchronization', () => {
             client as never,
         )
 
-        assert.equal(published.length, 1)
-        assert.equal(published[0].topic, 'lime/devices/pac-1')
-        const response = JSON.parse(published[0].payload.toString())
-        assert.equal(response.did, 'pac-1')
-        assert.equal(response.cmd, 'resp_timesync')
-        assert.equal(response.type, 1)
-        assert.equal(Buffer.from(response.data, 'base64').length, 7)
+        assert.equal(published.length, 0)
     })
 
     test('does not send unsolicited time synchronization to other models', () => {
@@ -67,36 +60,7 @@ describe('ThinQ2 time synchronization', () => {
         assert.equal(published.length, 0)
     })
 
-    test('retries PAC time synchronization once after the first appliance packet', () => {
-        const published: Array<{ topic: string; payload: Buffer | string }> = []
-        const broker = Object.assign(new EventEmitter(), {
-            publish(packet: { topic: string; payload: Buffer | string }) {
-                published.push(packet)
-            },
-        }) as unknown as Broker
-        const acceptor = new DeviceAcceptor(broker)
-        const device = new Device(broker, 'lime/devices/pac-1', 'pac-1', { modelId: 'PAC_910604_WW' })
-        const client = {
-            deployMsg: {
-                did: 'pac-1',
-                kind: 'PAC_910604_WW',
-                data: { appInfo: { timezone: '+0900' } },
-            },
-            deviceObj: device,
-        }
-        const packet = { did: 'pac-1', cmd: 'device_packet', type: 1, data: '00', mid: 1 } as const
-
-        acceptor.mqtt('clip/message/devices/pac-1', packet, client as never)
-        acceptor.mqtt('clip/message/devices/pac-1', packet, client as never)
-
-        assert.equal(published.length, 1)
-        const response = JSON.parse(published[0].payload.toString())
-        assert.equal(response.cmd, 'resp_timesync')
-        assert.equal(Buffer.from(response.data, 'base64').length, 7)
-    })
-
-    test('retries PAC time synchronization after provisioning and stops after disconnect', (t) => {
-        enableMockTimers(t)
+    test('sends time synchronization only in response to a PAC request', () => {
         const published: Array<{ topic: string; payload: Buffer | string }> = []
         const broker = Object.assign(new EventEmitter(), {
             publish(packet: { topic: string; payload: Buffer | string }) {
@@ -111,22 +75,22 @@ describe('ThinQ2 time synchronization', () => {
                 data: { appInfo: { timezone: '+0900' } },
             },
             deviceObj: undefined,
-            destroy() {},
         }
+        const packet = {
+            did: 'pac-1',
+            kind: 'PAC_910604_WW',
+            cmd: 'req_timesync',
+            type: 1,
+            data: null,
+            mid: 1,
+        } as const
 
-        acceptor.completeProvisioning(
-            'pac-1',
-            { did: 'pac-1', cmd: 'completeProvisioning_ack', type: 1, data: '', mid: 1 },
-            client as never,
-        )
-        assert.equal(published.length, 1, 'initial synchronization')
+        acceptor.mqtt('clip/message/devices/pac-1', packet, client as never)
 
-        tickMockTimers(t, 60_000)
-        assert.equal(published.length, 5, 'three delayed synchronizations and the first periodic synchronization')
-
-        acceptor.disconnected(client as never)
-        tickMockTimers(t, 60_000)
-        assert.equal(published.length, 5, 'no synchronization after disconnect')
+        assert.equal(published.length, 1)
+        const response = JSON.parse(published[0].payload.toString())
+        assert.equal(response.cmd, 'resp_timesync')
+        assert.equal(Buffer.from(response.data, 'base64').length, 7)
     })
 })
 

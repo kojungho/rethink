@@ -69,13 +69,7 @@ function trimNull(buf: Buffer) {
 type ClientWithExtra = Client & {
     deviceObj: undefined | Device
     deployMsg: undefined | ClipDeployMessage
-    pacTimeSyncRetried?: boolean
-    pacTimeSyncTimeouts?: Array<ReturnType<typeof setTimeout>>
-    pacTimeSyncInterval?: ReturnType<typeof setInterval>
 }
-
-const PAC_TIME_SYNC_RETRY_DELAYS_MS = [5_000, 15_000, 30_000] as const
-const PAC_TIME_SYNC_INTERVAL_MS = 60_000
 
 type DeviceAcceptorEvents = {
     newDevice: (dev: Device) => void
@@ -136,15 +130,6 @@ export class DeviceAcceptor extends TypedEmitter<DeviceAcceptorEvents> {
                 if (client.deviceObj) {
                     const buf = Buffer.from(payload.data as string, 'hex')
                     client.deviceObj.receivePacket(buf)
-
-                    // PAC can ignore the response sent immediately after
-                    // provisioning while its display controller is still
-                    // starting. Retry once after the first appliance packet,
-                    // when the device is demonstrably ready to receive it.
-                    if (client.deployMsg?.kind === 'PAC_910604_WW' && !client.pacTimeSyncRetried) {
-                        client.pacTimeSyncRetried = true
-                        this.timeSyncRequest(client, 'first PAC packet')
-                    }
                 }
             }
 
@@ -198,39 +183,6 @@ export class DeviceAcceptor extends TypedEmitter<DeviceAcceptorEvents> {
         const dev = new Device(this.broker, 'lime/devices/' + deviceId, deviceId, meta)
         client.deviceObj = dev
         this.emit('newDevice', dev)
-
-        // PAC_910604_WW does not always request time synchronization itself.
-        // Without an initial response its standby clock remains on the Wi-Fi
-        // connection prompt even though MQTT provisioning has completed.
-        if (meta.modelId === 'PAC_910604_WW') {
-            this.timeSyncRequest(client, 'provisioning')
-            this.schedulePacTimeSync(client)
-        }
-    }
-
-    schedulePacTimeSync(client: ClientWithExtra) {
-        this.clearPacTimeSyncSchedule(client)
-
-        const syncIfConnected = () => {
-            const deviceId = client.deployMsg?.did
-            if (!deviceId || !client.deviceObj || this.clientsById[deviceId] !== client) return
-            this.timeSyncRequest(client, 'scheduled retry')
-        }
-
-        client.pacTimeSyncTimeouts = PAC_TIME_SYNC_RETRY_DELAYS_MS.map((delay) => {
-            const timeout = setTimeout(syncIfConnected, delay)
-            timeout.unref?.()
-            return timeout
-        })
-        client.pacTimeSyncInterval = setInterval(syncIfConnected, PAC_TIME_SYNC_INTERVAL_MS)
-        client.pacTimeSyncInterval.unref?.()
-    }
-
-    clearPacTimeSyncSchedule(client: ClientWithExtra) {
-        for (const timeout of client.pacTimeSyncTimeouts ?? []) clearTimeout(timeout)
-        client.pacTimeSyncTimeouts = undefined
-        if (client.pacTimeSyncInterval) clearInterval(client.pacTimeSyncInterval)
-        client.pacTimeSyncInterval = undefined
     }
 
     timeSyncRequest(client: ClientWithExtra, reason = 'unspecified') {
@@ -261,7 +213,6 @@ export class DeviceAcceptor extends TypedEmitter<DeviceAcceptorEvents> {
 
     disconnected(_client: Client) {
         let client = _client as ClientWithExtra
-        this.clearPacTimeSyncSchedule(client)
         if (client.deviceObj) {
             delete this.clientsById[client.deviceObj.id]
             this.emit('dropDevice', client.deviceObj.id)

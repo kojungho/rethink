@@ -39,7 +39,6 @@ describe(MODEL_ID, () => {
         assert.equal(components.door_open_count.state_class, 'total_increasing')
         assert.equal(components.daily_door_open_count.name, '오늘 문 열림 횟수')
         assert.equal(components.daily_door_open_duration.name, '오늘 문 열림 시간')
-        assert.equal(components.thinq_daily_energy_usage.name, '오늘 전력 사용량')
         assert.equal(components.current_door_open_duration.device_class, 'duration')
         assert.equal(components.last_door_opened_at.device_class, 'timestamp')
         assert.equal(components.last_door_open_duration.device_class, 'duration')

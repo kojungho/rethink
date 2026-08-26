@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events'
 import type { ThinQConnectConfig } from '@/util/config'
 import type { Connection } from './homeassistant'
 import log from '@/util/logging'
+import { patCloudDiscovery, patCloudGroups, publishPatCloudGroup } from './pat_cloud_sensors'
 
 const API_KEY = 'v6GFvkweNo7DK7yD3ylIZ9w52aKBU0eJ7wLXkSR3'
 
@@ -59,6 +60,7 @@ export class ThinQConnectHistory extends EventEmitter {
     private pollPromise?: Promise<void>
     private resolveLocalDeviceId: (model: string) => string | undefined = () => undefined
     private readonly snapshots = new Map<string, ThinQConnectSnapshot>()
+    private readonly trackedLocalDeviceIds = new Set<string>()
 
     constructor(
         private readonly HA: Connection,
@@ -68,7 +70,10 @@ export class ThinQConnectHistory extends EventEmitter {
     ) {
         super()
         HA.on('statusChanged', (online) => {
-            if (online) void this.poll()
+            if (online) {
+                this.markTrackedUnavailable()
+                void this.poll()
+            }
         })
     }
 
@@ -79,6 +84,11 @@ export class ThinQConnectHistory extends EventEmitter {
 
     getSnapshot(localDeviceId: string) {
         return this.snapshots.get(localDeviceId)
+    }
+
+    trackLocalDevice(localDeviceId: string) {
+        this.trackedLocalDeviceIds.add(localDeviceId)
+        this.markUnavailable(localDeviceId)
     }
 
     start() {
@@ -115,6 +125,7 @@ export class ThinQConnectHistory extends EventEmitter {
     }
 
     private async pollOnce() {
+        this.markTrackedUnavailable()
         try {
             const devices = (await this.request('devices')) as ThinQDevice[]
             for (const device of devices) await this.updateDevice(device)
@@ -129,14 +140,15 @@ export class ThinQConnectHistory extends EventEmitter {
         const model = device.deviceInfo?.modelName
         if (!cloudDeviceId || !model) return
 
-        // 0.1.90 published a separate discovery document using the refrigerator
-        // cloud ID. Remove it even before the corresponding PAC reconnects.
+        // 0.1.90 briefly used the ThinQ cloud ID as a separate HA device.
+        // The PAT sensors now share the local device identifier instead.
         if (model === this.config.refrigerator_model) {
             this.HA.clearConfig(cloudDeviceId, `${cloudDeviceId}-thinq-history`)
         }
 
         const localDeviceId = this.resolveLocalDeviceId(model)
         if (!localDeviceId) return
+        this.trackedLocalDeviceIds.add(localDeviceId)
 
         const snapshot: ThinQConnectSnapshot = {
             alias: device.deviceInfo?.alias ?? model,
@@ -148,12 +160,15 @@ export class ThinQConnectHistory extends EventEmitter {
         }
 
         const errors: string[] = []
+        let stateAvailable = false
         try {
             snapshot.state = await this.request(`devices/${cloudDeviceId}/state`)
+            stateAvailable = true
         } catch (err) {
             errors.push(`state: ${this.errorMessage(err)}`)
         }
 
+        let energyAvailable = false
         try {
             const energyProfile = (await this.request(`devices/energy/${cloudDeviceId}/profile`)) as {
                 result?: { property?: string[] }
@@ -169,6 +184,7 @@ export class ThinQConnectHistory extends EventEmitter {
                     return Number.isFinite(value) ? total + value : total
                 }, 0)
             }
+            energyAvailable = true
         } catch (err) {
             // Error 1221 is the documented response for products without an
             // energy profile. Keep their live PAT state visible without marking
@@ -180,9 +196,27 @@ export class ThinQConnectHistory extends EventEmitter {
         this.snapshots.set(localDeviceId, snapshot)
         this.emit('snapshot', localDeviceId, snapshot)
 
-        if (model === this.config.refrigerator_model && 'energyUsage' in snapshot.dailyEnergy) {
-            this.HA.publishProperty(localDeviceId, 'thinq_daily_energy_usage', snapshot.dailyEnergy.energyUsage)
+        const groups = patCloudGroups(snapshot.deviceType, snapshot.state, snapshot.dailyEnergy)
+        for (const group of groups) {
+            const suffix = group.unit === 'main' ? '' : `-${group.unit}`
+            this.HA.publishConfig(
+                localDeviceId,
+                patCloudDiscovery(snapshot.alias, snapshot.model, group),
+                `${localDeviceId}-pat-cloud${suffix}`,
+            )
+            publishPatCloudGroup((property, value) => this.HA.publishProperty(localDeviceId, property, value), group)
         }
+        this.HA.publishProperty(localDeviceId, 'pat_cloud/state_availability', stateAvailable ? 'online' : 'offline')
+        this.HA.publishProperty(localDeviceId, 'pat_cloud/energy_availability', energyAvailable ? 'online' : 'offline')
+    }
+
+    private markUnavailable(localDeviceId: string) {
+        this.HA.publishProperty(localDeviceId, 'pat_cloud/state_availability', 'offline')
+        this.HA.publishProperty(localDeviceId, 'pat_cloud/energy_availability', 'offline')
+    }
+
+    private markTrackedUnavailable() {
+        for (const localDeviceId of this.trackedLocalDeviceIds) this.markUnavailable(localDeviceId)
     }
 
     private errorMessage(err: unknown) {

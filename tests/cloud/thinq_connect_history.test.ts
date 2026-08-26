@@ -61,7 +61,13 @@ describe('ThinQ Connect history', () => {
 
         await history.poll()
 
-        assert.equal(ha.devices['local-fridge-id'].properties.thinq_daily_energy_usage, 2319)
+        assert.equal(ha.devices['local-fridge-id'].properties['pat_cloud/daily_energy_usage'], 2319)
+        assert.equal(ha.devices['local-fridge-id'].properties['pat_cloud/state_availability'], 'online')
+        assert.equal(ha.devices['local-fridge-id'].properties['pat_cloud/energy_availability'], 'online')
+        const discovery = ha.devices['local-fridge-id-pat-cloud'].config!
+        assert.equal(discovery.device.identifiers, '$deviceid')
+        assert.equal(discovery.components.pat_cloud_daily_energy_usage.name, '오늘 전력 사용량 (PAT-Cloud)')
+        assert.equal(discovery.components.pat_cloud_fresh_air_filter.name, '청정 탈취 필터 상태 (PAT-Cloud)')
         assert.deepEqual(ha.clearedConfigs, [`${DEVICE_ID}-thinq-history`])
         assert.match(urls[3], /period=DAILY&startDate=20260826&endDate=20260826$/)
         assert.ok(headers.every((item) => item.Authorization === 'Bearer secret-token'))
@@ -93,7 +99,27 @@ describe('ThinQ Connect history', () => {
 
         await history.poll()
 
-        assert.equal(ha.devices['local-fridge-id'], undefined)
+        assert.equal(ha.devices['local-fridge-id-pat-cloud'], undefined)
+        assert.equal(ha.devices['local-fridge-id'].properties['pat_cloud/state_availability'], 'online')
+        assert.equal(ha.devices['local-fridge-id'].properties['pat_cloud/energy_availability'], 'online')
         assert.deepEqual(ha.clearedConfigs, [`${DEVICE_ID}-thinq-history`])
+    })
+
+    test('marks PAT-Cloud sensors unavailable before a refresh and keeps them offline on authentication failure', async () => {
+        const fetcher: FetchLike = async () => ({
+            ok: false,
+            status: 401,
+            async json() {
+                return { error: { code: '1302', message: 'token expired' } }
+            },
+        })
+        const ha = new MockHAConnection()
+        const history = new ThinQConnectHistory(ha.asConnection(), CONFIG, fetcher)
+
+        history.trackLocalDevice('local-fridge-id')
+        await history.poll()
+
+        assert.equal(ha.devices['local-fridge-id'].properties['pat_cloud/state_availability'], 'offline')
+        assert.equal(ha.devices['local-fridge-id'].properties['pat_cloud/energy_availability'], 'offline')
     })
 })

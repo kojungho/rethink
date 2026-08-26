@@ -80,6 +80,9 @@ export class Connection extends TypedEmitter<ConnectionEvents> {
         this.client.subscribe(this.config.rethink_prefix + '/+/+/+/set')
 
         this.client.subscribe(this.config.rethink_prefix + '/+/availability')
+        // Reset retained PAT availability from a previous addon process before
+        // fresh cloud data is fetched.
+        this.client.subscribe(this.config.rethink_prefix + '/+/pat_cloud/+')
         this.client.publish(this.config.rethink_prefix + '/availability', Buffer.from('online'), { retain: true })
 
         this.emit('discovery')
@@ -120,6 +123,16 @@ export class Connection extends TypedEmitter<ConnectionEvents> {
                     // clear any retained availability topic, but only if we hadn't published a message on that topic yet
                     if (!this.publishedAvailability.has(pathelements[0]))
                         this.client.publish(topic, 'offline', { retain: true })
+                }
+
+                if (
+                    pathelements.length === 3 &&
+                    pathelements[1] === 'pat_cloud' &&
+                    (pathelements[2] === 'state_availability' || pathelements[2] === 'energy_availability') &&
+                    message.toString('utf-8') === 'online' &&
+                    packet.retain
+                ) {
+                    this.client.publish(topic, 'offline', { retain: true })
                 }
             }
         } catch (err) {

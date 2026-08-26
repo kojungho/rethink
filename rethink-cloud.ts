@@ -155,6 +155,7 @@ const thinqHistory = config.thinq_connect
     : undefined
 manager.on('newDevice', (dev) => {
     ha.newDevice(dev)
+    thinqHistory?.trackLocalDevice(dev.id)
     thinqHistory?.schedulePoll()
 })
 thinqHistory?.start()

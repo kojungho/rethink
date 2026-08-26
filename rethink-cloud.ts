@@ -22,6 +22,7 @@ import { DeviceManager } from './cloud/devmgr'
 import { Bridge } from './bridge'
 import { JSONStorage } from './bridge/state'
 import { createSniContextFactory } from './util/dnat'
+import { ThinQConnectHistory } from './cloud/thinq_connect_history'
 
 const configPath = resolve(process.argv[2] ?? './config.json')
 const configDir = dirname(configPath)
@@ -144,9 +145,12 @@ function t2setup(manager: DeviceManager) {
 }
 
 // HA connector
-const ha = new HA_bridge(new HA_connection(config.homeassistant))
+const haConnection = new HA_connection(config.homeassistant)
+const ha = new HA_bridge(haConnection)
 const manager = new DeviceManager()
 manager.on('newDevice', (dev) => ha.newDevice(dev))
+
+if (config.thinq_connect) new ThinQConnectHistory(haConnection, config.thinq_connect).start()
 
 t1setup(manager)
 t2setup(manager)

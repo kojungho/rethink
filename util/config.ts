@@ -17,6 +17,7 @@ export type RawConfig = {
         enabled: boolean
         dns_servers?: string[]
     }
+    thinq_connect?: ThinQConnectConfig
     log?: string[]
 }
 
@@ -39,7 +40,17 @@ export type Config = {
         enabled: boolean
         dns_servers: string[]
     }
+    thinq_connect?: ThinQConnectConfig
     log: string[]
+}
+
+export type ThinQConnectConfig = {
+    access_token: string
+    country_code: string
+    client_id: string
+    poll_minutes: number
+    timezone: string
+    refrigerator_model: string
 }
 
 export type HAConfig = {

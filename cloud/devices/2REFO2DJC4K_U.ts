@@ -6,6 +6,8 @@ import { allowExtendedType } from '@/util/casting'
 import AABBDevice from './aabb_device'
 import { freezerRange, fridgeRange } from './fridge_common'
 import { commandValueTemplate, displayOptions, displayValueTemplate } from './display_localization'
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 
 const DISPLAY_LABELS = {
     OFF: '꺼짐',
@@ -35,9 +37,22 @@ export default class Device extends AABBDevice {
     private previousDoorOpen: boolean | undefined
     private doorOpenCount = 0
     private doorOpenedAt: number | undefined
+    private dailyDoorDate = this.koreanDate(Date.now())
+    private dailyDoorOpenCount = 0
+    private dailyDoorOpenSeconds = 0
+    private dailyDoorOpenedAt: number | undefined
+    private dailyLastObservedAt: number | undefined
+    private dailyLastPersistedAt = 0
+    private readonly dailyStatsPath?: string
 
     constructor(HA: Connection, thinq: Thinq2Device, meta: Metadata) {
         super(HA, thinq)
+        const stateDir = process.env.RETHINK_STATE_DIR
+        if (stateDir) {
+            const safeId = this.id.replace(/[^a-zA-Z0-9_-]/g, '_')
+            this.dailyStatsPath = join(stateDir, `fridge-door-${safeId}.json`)
+            this.loadDailyDoorStatistics()
+        }
         this.deviceConfig = HADevice.config(meta, { name: '냉장고' })
         this.HA.publishConfig(this.id, {
             ...this.deviceConfig,
@@ -118,6 +133,25 @@ export default class Device extends AABBDevice {
                         state_class: 'total_increasing',
                         unit_of_measurement: '회',
                     },
+                    daily_door_open_count: {
+                        platform: 'sensor',
+                        icon: 'mdi:door-open',
+                        unique_id: '$deviceid-daily_door_open_count',
+                        state_topic: '$this/daily_door_open_count',
+                        name: '오늘 문 열림 횟수',
+                        state_class: 'total',
+                        unit_of_measurement: '회',
+                    },
+                    daily_door_open_duration: {
+                        platform: 'sensor',
+                        device_class: 'duration',
+                        icon: 'mdi:timer-outline',
+                        unique_id: '$deviceid-daily_door_open_duration',
+                        state_topic: '$this/daily_door_open_duration',
+                        name: '오늘 문 열림 시간',
+                        state_class: 'total',
+                        unit_of_measurement: 's',
+                    },
                     current_door_open_duration: {
                         platform: 'sensor',
                         device_class: 'duration',
@@ -171,7 +205,7 @@ export default class Device extends AABBDevice {
                         icon: 'mdi:air-filter',
                         unique_id: '$deviceid-pure_n_fresh',
                         state_topic: '$this/pure_n_fresh',
-                        name: '퓨어 프레쉬 상태',
+                        name: '청정 탈취 필터 상태',
                         entity_category: 'diagnostic',
                         value_template: displayValueTemplate(DISPLAY_LABELS),
                     },
@@ -346,6 +380,7 @@ export default class Device extends AABBDevice {
 
         // MQTT 퍼블리시
         this.publishProperty('door', anyDoorOpen ? 'ON' : 'OFF')
+        this.publishDailyDoorStatistics(anyDoorOpen)
         this.publishDoorStatistics(anyDoorOpen)
         this.publishProperty('power_status', 'ON')
         this.publishProperty('fridge_setpoint', setpointFridge)
@@ -387,6 +422,106 @@ export default class Device extends AABBDevice {
         this.publishProperty('door_open_count', this.doorOpenCount)
         this.publishProperty('current_door_open_duration', currentDuration)
         this.previousDoorOpen = anyDoorOpen
+    }
+
+    private publishDailyDoorStatistics(anyDoorOpen: boolean) {
+        const now = Date.now()
+        const date = this.koreanDate(now)
+        let forcePersist = false
+
+        if (date !== this.dailyDoorDate) {
+            this.dailyDoorDate = date
+            this.dailyDoorOpenCount = 0
+            this.dailyDoorOpenSeconds = 0
+            if (this.dailyDoorOpenedAt !== undefined) {
+                const midnight = Date.parse(`${date}T00:00:00+09:00`)
+                this.dailyDoorOpenedAt = midnight
+                this.dailyDoorOpenSeconds = Math.max(0, Math.floor((now - midnight) / 1000))
+            }
+            forcePersist = true
+        }
+
+        if (anyDoorOpen) {
+            if (this.previousDoorOpen === false) {
+                this.dailyDoorOpenCount += 1
+                this.dailyDoorOpenedAt = now
+                forcePersist = true
+            } else if (this.dailyDoorOpenedAt === undefined) {
+                // The first frame can arrive with a door already open. Track time,
+                // but do not invent an opening event that was not observed.
+                this.dailyDoorOpenedAt = now
+                forcePersist = true
+            }
+            this.dailyLastObservedAt = now
+        } else if (this.dailyDoorOpenedAt !== undefined) {
+            const end = this.previousDoorOpen === true ? now : (this.dailyLastObservedAt ?? now)
+            this.dailyDoorOpenSeconds += Math.max(0, Math.floor((end - this.dailyDoorOpenedAt) / 1000))
+            this.dailyDoorOpenedAt = undefined
+            this.dailyLastObservedAt = undefined
+            forcePersist = true
+        }
+
+        const currentOpenSeconds =
+            anyDoorOpen && this.dailyDoorOpenedAt !== undefined
+                ? Math.max(0, Math.floor((now - this.dailyDoorOpenedAt) / 1000))
+                : 0
+        this.publishProperty('daily_door_open_count', this.dailyDoorOpenCount)
+        this.publishProperty('daily_door_open_duration', this.dailyDoorOpenSeconds + currentOpenSeconds)
+
+        if (forcePersist || now - this.dailyLastPersistedAt >= 60_000) this.persistDailyDoorStatistics(now)
+    }
+
+    private koreanDate(now: number) {
+        return new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Seoul',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+        }).format(new Date(now))
+    }
+
+    private loadDailyDoorStatistics() {
+        if (!this.dailyStatsPath) return
+        try {
+            const stored = JSON.parse(readFileSync(this.dailyStatsPath, 'utf8')) as {
+                date?: string
+                count?: number
+                openSeconds?: number
+                openedAt?: number
+                lastObservedAt?: number
+            }
+            if (stored.date === this.dailyDoorDate) {
+                this.dailyDoorOpenCount = Math.max(0, Number(stored.count) || 0)
+                this.dailyDoorOpenSeconds = Math.max(0, Number(stored.openSeconds) || 0)
+                this.dailyDoorOpenedAt = typeof stored.openedAt === 'number' ? stored.openedAt : undefined
+                this.dailyLastObservedAt = typeof stored.lastObservedAt === 'number' ? stored.lastObservedAt : undefined
+            }
+        } catch {
+            // A missing or damaged optional statistics file starts a fresh local day.
+        }
+    }
+
+    private persistDailyDoorStatistics(now: number) {
+        if (!this.dailyStatsPath) return
+        try {
+            const tempPath = `${this.dailyStatsPath}.tmp`
+            mkdirSync(dirname(this.dailyStatsPath), { recursive: true })
+            writeFileSync(
+                tempPath,
+                JSON.stringify({
+                    date: this.dailyDoorDate,
+                    count: this.dailyDoorOpenCount,
+                    openSeconds: this.dailyDoorOpenSeconds,
+                    openedAt: this.dailyDoorOpenedAt,
+                    lastObservedAt: this.dailyLastObservedAt,
+                }),
+                { mode: 0o600 },
+            )
+            renameSync(tempPath, this.dailyStatsPath)
+            this.dailyLastPersistedAt = now
+        } catch (err) {
+            console.warn(`Unable to persist refrigerator door statistics: ${err}`)
+        }
     }
 
     private publishAdvancedSettings(status: Buffer) {

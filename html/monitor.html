@@ -103,6 +103,16 @@
             .reduced_margins .input-field {
                 margin: 4px;
             }
+            #cloud_values {
+                max-height: 18em;
+                overflow: auto;
+                margin: 8px 0 0;
+                padding: 8px;
+                border-radius: 4px;
+                background: #f5f5f5;
+                white-space: pre-wrap;
+                word-break: break-word;
+            }
         </style>
         <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
         <link
@@ -127,6 +137,20 @@
             <span class="status_label">Device ID:</span> <span id="device_id" class="status_value"></span> <br />
             <span class="status_label">Device model:</span> <span id="device_model" class="status_value"></span> <br />
             <span class="status_label">Status:</span> <span id="device_status" class="status_value"></span> <br />
+        </div>
+
+        <div class="container">
+            <div class="card-panel" style="padding: 12px; margin-bottom: 4px">
+                <div class="flex_x">
+                    <strong class="flex_grow">ThinQ Connect (PAT)</strong>
+                    <span id="cloud_status">Waiting for cloud data...</span>
+                </div>
+                <div>
+                    <span class="status_label">Last update:</span>
+                    <span id="cloud_updated_at">-</span>
+                </div>
+                <pre id="cloud_values">-</pre>
+            </div>
         </div>
 
         <div class="container">

@@ -148,9 +148,16 @@ function t2setup(manager: DeviceManager) {
 const haConnection = new HA_connection(config.homeassistant)
 const ha = new HA_bridge(haConnection)
 const manager = new DeviceManager()
-manager.on('newDevice', (dev) => ha.newDevice(dev))
-
-if (config.thinq_connect) new ThinQConnectHistory(haConnection, config.thinq_connect).start()
+const thinqHistory = config.thinq_connect
+    ? new ThinQConnectHistory(haConnection, config.thinq_connect).setLocalDeviceResolver((model) =>
+          ha.findDeviceIdByModel(model),
+      )
+    : undefined
+manager.on('newDevice', (dev) => {
+    ha.newDevice(dev)
+    thinqHistory?.schedulePoll()
+})
+thinqHistory?.start()
 
 t1setup(manager)
 t2setup(manager)
@@ -165,6 +172,9 @@ if (config.bridge) {
 }
 
 if (config.management_port)
-    Management.app(ha, manager, bridge).listen(config.management_port.bind, config.management_port.address)
+    Management.app(ha, manager, bridge, undefined, thinqHistory).listen(
+        config.management_port.bind,
+        config.management_port.address,
+    )
 
 console.log('Rethink cloud ready')

@@ -152,6 +152,16 @@ export default class Device extends AABBDevice {
                         state_class: 'total',
                         unit_of_measurement: 's',
                     },
+                    thinq_daily_energy_usage: {
+                        platform: 'sensor',
+                        device_class: 'energy',
+                        state_class: 'total',
+                        unit_of_measurement: 'Wh',
+                        icon: 'mdi:lightning-bolt',
+                        name: '오늘 전력 사용량',
+                        unique_id: '$deviceid-thinq_daily_energy_usage',
+                        state_topic: '$this/thinq_daily_energy_usage',
+                    },
                     current_door_open_duration: {
                         platform: 'sensor',
                         device_class: 'duration',

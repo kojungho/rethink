@@ -55,6 +55,9 @@
         Stop: '중지',
         'Annotation (for example: Auto Dry turned on)': '메모 (예: 자동건조 켬)',
         'Add note': '메모 추가',
+        'Last update:': '마지막 조회:',
+        'ThinQ Connect (PAT)': 'ThinQ Connect(PAT) 조회값',
+        'Waiting for cloud data...': '클라우드 데이터를 기다리는 중...',
     }
 
     const keyedKo = {
@@ -85,6 +88,9 @@
         'capture.delete': '삭제',
         'capture.delete_confirm': '이 캡처 파일을 삭제할까요?',
         'capture.delete_failed': '캡처 파일을 삭제하지 못했습니다.',
+        'cloud.waiting': '클라우드 데이터를 기다리는 중...',
+        'cloud.no_data': '아직 이 기기의 PAT 조회 데이터가 없습니다.',
+        'cloud.partial_error': '일부 조회 오류',
     }
 
     const useKorean = (navigator.language || '').toLowerCase().startsWith('ko')

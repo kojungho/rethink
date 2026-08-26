@@ -95,6 +95,13 @@ class Bridge {
         }
     }
 
+    findDeviceIdByModel(model: string) {
+        for (const [id, device] of this.haDevices) {
+            if (device.config?.device.model === model) return id
+        }
+        return undefined
+    }
+
     newDevice(thinqdev: AnyDevice) {
         const alias = this.aliasResolver?.(thinqdev.id)
         const meta = alias ? { ...thinqdev.meta, alias } : thinqdev.meta

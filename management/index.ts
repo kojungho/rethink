@@ -12,12 +12,14 @@ import { Bridge } from '@/bridge'
 import { Request, Response } from 'express'
 import { Device as T1Device } from '@/cloud/thinq1/device'
 import { Device as T2Device } from '@/cloud/thinq2/device'
+import type { ThinQConnectHistory, ThinQConnectSnapshot } from '@/cloud/thinq_connect_history'
 
 export function app(
     ha: HA_bridge,
     manager: DeviceManager,
     bridge: Bridge | undefined,
     captureDir = process.env.RETHINK_CAPTURE_DIR ?? path.join(process.cwd(), 'captures'),
+    thinqConnect?: ThinQConnectHistory,
 ) {
     const app = new WebSocketExpress()
     const subscribers = new Set<ExtendedWebSocket>()
@@ -277,6 +279,12 @@ export function app(
             let capture: { filename: string; writer: CaptureWriter; label?: string } | undefined
             const deviceName = () => bridge?.getDeviceAlias(id) || device?.meta.modelName || device?.meta.modelId || id
             const sendDeviceName = () => safeSend(ws, JSON.stringify({ name: deviceName() }))
+            const sendCloudSnapshot = () => {
+                safeSend(ws, JSON.stringify({ cloud: thinqConnect?.getSnapshot(id) ?? null }))
+            }
+            const onCloudSnapshot = (changedId: string, snapshot: ThinQConnectSnapshot) => {
+                if (changedId === id) safeSend(ws, JSON.stringify({ cloud: snapshot }))
+            }
             const onDeviceRx = (arg: Buffer, mapped: boolean) => {
                 capture?.writer.recordWire('fromDevice', arg.toString('hex'), injectFlag, mapped)
                 safeSend(ws, JSON.stringify({ rx: arg.toString('hex'), injected: injectFlag, mapped }))
@@ -334,8 +342,10 @@ export function app(
             manager.on('newDevice', checkDevicePresence)
             manager.on('dropDevice', checkDevicePresence)
             bridge?.on('aliasesChanged', sendDeviceName)
+            thinqConnect?.on('snapshot', onCloudSnapshot)
 
             checkDevicePresence()
+            sendCloudSnapshot()
 
             ws.on('message', (msg) => {
                 if (!Buffer.isBuffer(msg)) return
@@ -406,6 +416,7 @@ export function app(
                 manager.removeListener('newDevice', checkDevicePresence)
                 manager.removeListener('dropDevice', checkDevicePresence)
                 bridge?.removeListener('aliasesChanged', sendDeviceName)
+                thinqConnect?.removeListener('snapshot', onCloudSnapshot)
             }
             deviceMonitors.set(ws, cleanup)
             ws.once('close', cleanup)

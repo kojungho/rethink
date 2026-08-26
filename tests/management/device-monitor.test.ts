@@ -10,6 +10,7 @@ import type HA_bridge from '@/cloud/ha_bridge'
 import { DeviceManager } from '@/cloud/devmgr'
 import { app } from '@/management'
 import { MockThinq1Device, MockThinq2Device } from '../helpers/mocks'
+import type { ThinQConnectHistory, ThinQConnectSnapshot } from '@/cloud/thinq_connect_history'
 
 function nextJson(ws: WebSocket, predicate: (message: any) => boolean) {
     return new Promise<any>((resolve) => {
@@ -97,6 +98,58 @@ test('server shutdown closes a connected device monitor and detaches all listene
     assert.equal(manager.listenerCount('newDevice'), 0)
     assert.equal(manager.listenerCount('dropDevice'), 0)
     assert.equal(haStatus.listenerCount('statusChanged'), 0)
+})
+
+test('device monitor sends the current and updated ThinQ Connect PAT snapshot', async () => {
+    const haStatus = Object.assign(new EventEmitter(), { isConnected: true })
+    const ha = { HA: haStatus, haDevices: new Map() } as unknown as HA_bridge
+    const manager = new DeviceManager()
+    const device = new MockThinq1Device('device-1', {
+        modelId: 'model-id',
+        modelName: 'model-name',
+        deviceType: '401',
+    })
+    manager.accept(device)
+
+    let snapshot: ThinQConnectSnapshot = {
+        alias: '거실 에어컨',
+        model: 'model-id',
+        deviceType: 'DEVICE_AIR_CONDITIONER',
+        updatedAt: '2026-08-27T00:00:00.000Z',
+        state: { temperature: { currentTemperature: 27 } },
+        energyProperties: ['energyUsage'],
+        dailyEnergy: { energyUsage: 123 },
+    }
+    const cloudEmitter = new EventEmitter()
+    const cloud = Object.assign(cloudEmitter, {
+        getSnapshot(id: string) {
+            return id === 'device-1' ? snapshot : undefined
+        },
+    }) as unknown as ThinQConnectHistory
+
+    const server = app(ha, manager, undefined, undefined, cloud)
+    server.listen(0, '127.0.0.1')
+    await once(server, 'listening')
+    const port = (server.address() as AddressInfo).port
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/device?id=device-1`)
+
+    try {
+        const initial = nextJson(ws, (message) => message.cloud?.dailyEnergy?.energyUsage === 123)
+        await once(ws, 'open')
+        assert.equal((await initial).cloud.state.temperature.currentTemperature, 27)
+
+        snapshot = { ...snapshot, dailyEnergy: { energyUsage: 456 } }
+        const updated = nextJson(ws, (message) => message.cloud?.dailyEnergy?.energyUsage === 456)
+        cloud.emit('snapshot', 'device-1', snapshot)
+        assert.equal((await updated).cloud.dailyEnergy.energyUsage, 456)
+    } finally {
+        ws.close()
+        await new Promise<void>((resolve, reject) => {
+            server.close((error) => (error ? reject(error) : resolve()))
+        })
+    }
+
+    assert.equal(cloud.listenerCount('snapshot'), 0)
 })
 
 test('device monitor records, annotates, lists, and downloads a capture', async () => {

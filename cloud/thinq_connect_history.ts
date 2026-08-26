@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
+import { EventEmitter } from 'node:events'
 import type { ThinQConnectConfig } from '@/util/config'
-import type { Connection, DeviceDiscovery } from './homeassistant'
-import { allowExtendedType } from '@/util/casting'
+import type { Connection } from './homeassistant'
 import log from '@/util/logging'
 
 const API_KEY = 'v6GFvkweNo7DK7yD3ylIZ9w52aKBU0eJ7wLXkSR3'
@@ -26,6 +26,17 @@ type ThinQDevice = {
     }
 }
 
+export type ThinQConnectSnapshot = {
+    alias: string
+    model: string
+    deviceType: string
+    updatedAt: string
+    state?: unknown
+    energyProperties: string[]
+    dailyEnergy: Record<string, number>
+    error?: string
+}
+
 function responseBody(payload: unknown): unknown {
     if (!payload || typeof payload !== 'object') return payload
     return (payload as { response?: unknown }).response ?? payload
@@ -42,11 +53,12 @@ function compactDate(now: Date, timezone: string): string {
     return `${get('year')}${get('month')}${get('day')}`
 }
 
-export class ThinQConnectHistory {
+export class ThinQConnectHistory extends EventEmitter {
     private timer?: NodeJS.Timeout
+    private refreshTimer?: NodeJS.Timeout
     private pollPromise?: Promise<void>
-    private refrigeratorId?: string
-    private discoveryConfig?: DeviceDiscovery
+    private resolveLocalDeviceId: (model: string) => string | undefined = () => undefined
+    private readonly snapshots = new Map<string, ThinQConnectSnapshot>()
 
     constructor(
         private readonly HA: Connection,
@@ -54,10 +66,19 @@ export class ThinQConnectHistory {
         private readonly fetcher: FetchLike = fetch as FetchLike,
         private readonly now: () => Date = () => new Date(),
     ) {
-        HA.on('discovery', () => this.publishDiscovery())
+        super()
         HA.on('statusChanged', (online) => {
             if (online) void this.poll()
         })
+    }
+
+    setLocalDeviceResolver(resolver: (model: string) => string | undefined) {
+        this.resolveLocalDeviceId = resolver
+        return this
+    }
+
+    getSnapshot(localDeviceId: string) {
+        return this.snapshots.get(localDeviceId)
     }
 
     start() {
@@ -70,7 +91,18 @@ export class ThinQConnectHistory {
 
     stop() {
         if (this.timer) clearInterval(this.timer)
+        if (this.refreshTimer) clearTimeout(this.refreshTimer)
         this.timer = undefined
+        this.refreshTimer = undefined
+    }
+
+    schedulePoll(delayMs = 3_000) {
+        if (this.refreshTimer) clearTimeout(this.refreshTimer)
+        this.refreshTimer = setTimeout(() => {
+            this.refreshTimer = undefined
+            void this.poll()
+        }, delayMs)
+        this.refreshTimer.unref()
     }
 
     poll(): Promise<void> {
@@ -85,79 +117,76 @@ export class ThinQConnectHistory {
     private async pollOnce() {
         try {
             const devices = (await this.request('devices')) as ThinQDevice[]
-            const refrigerator = devices.find(
-                (device) =>
-                    device.deviceInfo?.deviceType === 'DEVICE_REFRIGERATOR' &&
-                    device.deviceInfo.modelName === this.config.refrigerator_model,
-            )
-            if (!refrigerator?.deviceId) {
-                throw new Error(`refrigerator model ${this.config.refrigerator_model} was not returned`)
-            }
-
-            this.refrigeratorId = refrigerator.deviceId
-            const energyProfile = (await this.request(`devices/energy/${refrigerator.deviceId}/profile`)) as {
-                result?: { property?: string[] }
-            }
-            const properties = energyProfile.result?.property ?? []
-            if (!properties.includes('energyUsage')) {
-                throw new Error('daily energy usage is not supported by this refrigerator')
-            }
-
-            this.discoveryConfig = this.makeDiscovery(refrigerator)
-            this.publishDiscovery()
-
-            const date = compactDate(this.now(), this.config.timezone)
-            const usage = (await this.request(
-                `devices/energy/${refrigerator.deviceId}/usage?property=energyUsage&period=DAILY&startDate=${date}&endDate=${date}`,
-            )) as { result?: { dataList?: Array<Record<string, unknown>> } }
-            const wattHours = (usage.result?.dataList ?? []).reduce((total, item) => {
-                const value = Number(item.energyUsage)
-                return Number.isFinite(value) ? total + value : total
-            }, 0)
-
-            this.HA.publishProperty(refrigerator.deviceId, 'thinq_daily_energy_usage', wattHours)
-            this.HA.publishProperty(refrigerator.deviceId, 'thinq_history_availability', 'online')
-            log('status', `ThinQ Connect refrigerator daily energy updated (${wattHours} Wh)`)
+            for (const device of devices) await this.updateDevice(device)
+            log('status', `ThinQ Connect PAT snapshots updated (${this.snapshots.size} local devices)`)
         } catch (err) {
-            if (this.refrigeratorId) {
-                this.HA.publishProperty(this.refrigeratorId, 'thinq_history_availability', 'offline')
-            }
             console.warn(`ThinQ Connect history update failed: ${err instanceof Error ? err.message : String(err)}`)
         }
     }
 
-    private publishDiscovery() {
-        if (!this.refrigeratorId || !this.discoveryConfig) return
-        this.HA.publishConfig(this.refrigeratorId, this.discoveryConfig, `${this.refrigeratorId}-thinq-history`)
+    private async updateDevice(device: ThinQDevice) {
+        const cloudDeviceId = device.deviceId
+        const model = device.deviceInfo?.modelName
+        if (!cloudDeviceId || !model) return
+
+        // 0.1.90 published a separate discovery document using the refrigerator
+        // cloud ID. Remove it even before the corresponding PAC reconnects.
+        if (model === this.config.refrigerator_model) {
+            this.HA.clearConfig(cloudDeviceId, `${cloudDeviceId}-thinq-history`)
+        }
+
+        const localDeviceId = this.resolveLocalDeviceId(model)
+        if (!localDeviceId) return
+
+        const snapshot: ThinQConnectSnapshot = {
+            alias: device.deviceInfo?.alias ?? model,
+            model,
+            deviceType: device.deviceInfo?.deviceType ?? 'UNKNOWN',
+            updatedAt: this.now().toISOString(),
+            energyProperties: [],
+            dailyEnergy: {},
+        }
+
+        const errors: string[] = []
+        try {
+            snapshot.state = await this.request(`devices/${cloudDeviceId}/state`)
+        } catch (err) {
+            errors.push(`state: ${this.errorMessage(err)}`)
+        }
+
+        try {
+            const energyProfile = (await this.request(`devices/energy/${cloudDeviceId}/profile`)) as {
+                result?: { property?: string[] }
+            }
+            snapshot.energyProperties = energyProfile.result?.property ?? []
+            const date = compactDate(this.now(), this.config.timezone)
+            for (const property of snapshot.energyProperties) {
+                const usage = (await this.request(
+                    `devices/energy/${cloudDeviceId}/usage?property=${encodeURIComponent(property)}&period=DAILY&startDate=${date}&endDate=${date}`,
+                )) as { result?: { dataList?: Array<Record<string, unknown>> } }
+                snapshot.dailyEnergy[property] = (usage.result?.dataList ?? []).reduce((total, item) => {
+                    const value = Number(item[property])
+                    return Number.isFinite(value) ? total + value : total
+                }, 0)
+            }
+        } catch (err) {
+            // Error 1221 is the documented response for products without an
+            // energy profile. Keep their live PAT state visible without marking
+            // the whole snapshot as failed.
+            if (!this.errorMessage(err).includes('1221')) errors.push(`energy: ${this.errorMessage(err)}`)
+        }
+
+        if (errors.length) snapshot.error = errors.join('; ')
+        this.snapshots.set(localDeviceId, snapshot)
+        this.emit('snapshot', localDeviceId, snapshot)
+
+        if (model === this.config.refrigerator_model && 'energyUsage' in snapshot.dailyEnergy) {
+            this.HA.publishProperty(localDeviceId, 'thinq_daily_energy_usage', snapshot.dailyEnergy.energyUsage)
+        }
     }
 
-    private makeDiscovery(device: ThinQDevice): DeviceDiscovery {
-        return allowExtendedType({
-            availability: [{ topic: '$this/thinq_history_availability' }, { topic: '$rethink/availability' }],
-            availability_mode: 'all',
-            device: {
-                identifiers: '$deviceid',
-                manufacturer: 'LG',
-                model: device.deviceInfo?.modelName,
-                name: device.deviceInfo?.alias ?? '냉장고',
-            },
-            origin: {
-                name: 'rethink / LG ThinQ Connect',
-                support_url: 'https://github.com/thinq-connect/pythinqconnect',
-            },
-            components: {
-                thinq_daily_energy_usage: {
-                    platform: 'sensor',
-                    device_class: 'energy',
-                    state_class: 'total',
-                    unit_of_measurement: 'Wh',
-                    icon: 'mdi:lightning-bolt',
-                    name: '오늘 전력 사용량',
-                    unique_id: '$deviceid-thinq_daily_energy_usage',
-                    state_topic: '$this/thinq_daily_energy_usage',
-                } as unknown as DeviceDiscovery['components'][string],
-            },
-        })
+    private errorMessage(err: unknown) {
+        return err instanceof Error ? err.message : String(err)
     }
 
     private async request(path: string): Promise<unknown> {

@@ -46,6 +46,9 @@ describe('ThinQ Connect history', () => {
             if (url.endsWith(`/devices/energy/${DEVICE_ID}/profile`)) {
                 return jsonResponse({ result: { property: ['energyUsage'] } })
             }
+            if (url.endsWith(`/devices/${DEVICE_ID}/state`)) {
+                return jsonResponse({ refrigeration: { freshAirFilter: 'AUTO' } })
+            }
             return jsonResponse({ result: { dataList: [{ energyUsage: 2000 }, { energyUsage: 319 }] } })
         }
         const ha = new MockHAConnection()
@@ -54,17 +57,18 @@ describe('ThinQ Connect history', () => {
             CONFIG,
             fetcher,
             () => new Date('2026-08-26T12:00:00+09:00'),
-        )
+        ).setLocalDeviceResolver(() => 'local-fridge-id')
 
         await history.poll()
 
-        assert.equal(ha.devices[DEVICE_ID].properties.thinq_daily_energy_usage, 2319)
-        assert.equal(ha.devices[DEVICE_ID].properties.thinq_history_availability, 'online')
-        const discovery = ha.devices[`${DEVICE_ID}-thinq-history`].config!
-        assert.equal(discovery.components.thinq_daily_energy_usage.name, '오늘 전력 사용량')
-        assert.match(urls[2], /period=DAILY&startDate=20260826&endDate=20260826$/)
+        assert.equal(ha.devices['local-fridge-id'].properties.thinq_daily_energy_usage, 2319)
+        assert.deepEqual(ha.clearedConfigs, [`${DEVICE_ID}-thinq-history`])
+        assert.match(urls[3], /period=DAILY&startDate=20260826&endDate=20260826$/)
         assert.ok(headers.every((item) => item.Authorization === 'Bearer secret-token'))
         assert.ok(urls.every((url) => !url.includes('secret-token')))
+        assert.deepEqual(history.getSnapshot('local-fridge-id')?.state, {
+            refrigeration: { freshAirFilter: 'AUTO' },
+        })
     })
 
     test('does not create a guessed sensor when energyUsage is unsupported', async () => {
@@ -83,11 +87,13 @@ describe('ThinQ Connect history', () => {
             return jsonResponse({ result: { property: [] } })
         }
         const ha = new MockHAConnection()
-        const history = new ThinQConnectHistory(ha.asConnection(), CONFIG, fetcher)
+        const history = new ThinQConnectHistory(ha.asConnection(), CONFIG, fetcher).setLocalDeviceResolver(
+            () => 'local-fridge-id',
+        )
 
         await history.poll()
 
-        assert.equal(ha.devices[`${DEVICE_ID}-thinq-history`], undefined)
-        assert.equal(ha.devices[DEVICE_ID].properties.thinq_history_availability, 'offline')
+        assert.equal(ha.devices['local-fridge-id'], undefined)
+        assert.deepEqual(ha.clearedConfigs, [`${DEVICE_ID}-thinq-history`])
     })
 })

@@ -111,6 +111,8 @@ function connect() {
                 get('device_name').innerText = json.name
             }
 
+            if ('cloud' in json) renderCloudSnapshot(json.cloud)
+
             if (json.capture) {
                 if (json.capture.error) {
                     setCaptureState(false)
@@ -129,6 +131,30 @@ function connect() {
             }
         }
     }
+}
+
+function renderCloudSnapshot(snapshot) {
+    if (!snapshot) {
+        get('cloud_status').innerText = rethinkI18n.t('cloud.waiting', 'Waiting for cloud data...')
+        get('cloud_updated_at').innerText = '-'
+        get('cloud_values').innerText = rethinkI18n.t('cloud.no_data', 'No PAT data for this device yet.')
+        return
+    }
+
+    get('cloud_status').innerText = snapshot.error
+        ? rethinkI18n.t('cloud.partial_error', 'Partial error')
+        : rethinkI18n.t('status.ok', 'OK')
+    get('cloud_updated_at').innerText = snapshot.updatedAt ? new Date(snapshot.updatedAt).toLocaleString() : '-'
+    const values = {
+        alias: snapshot.alias,
+        model: snapshot.model,
+        deviceType: snapshot.deviceType,
+        state: snapshot.state,
+        energyProperties: snapshot.energyProperties,
+        dailyEnergyWh: snapshot.dailyEnergy,
+    }
+    if (snapshot.error) values.error = snapshot.error
+    get('cloud_values').innerText = JSON.stringify(values, null, 2)
 }
 
 // Same as the panel, and for the same reason its readyState check had to go: the restored socket can

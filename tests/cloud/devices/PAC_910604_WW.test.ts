@@ -241,6 +241,17 @@ describe('PAC_910604_WW', () => {
         const oneSelectedCount = thinq.outbox.length
         ha.setProperty(DEVICE_ID, 'standby_indoor_air', 'command', 'OFF')
         assert.equal(thinq.outbox.length, oneSelectedCount, 'the last selected standby screen must remain enabled')
+
+        dev.processKeyValue(0x1a6, 0)
+        dev.processKeyValue(0x1b0, 1)
+        dev.processKeyValue(0x1b9, 1)
+        ha.setProperty(DEVICE_ID, 'standby_time_format', 'command', 'HOUR_24')
+        const singleScreenWrite = TLV.parse(thinq.outbox.at(-1)!.subarray(11, -2))
+        assert.equal(
+            singleScreenWrite.find(({ t }) => t === 0x1b9)?.v,
+            0,
+            'auto rotation must be disabled when only one standby screen is selected',
+        )
         dev.drop()
     })
 })

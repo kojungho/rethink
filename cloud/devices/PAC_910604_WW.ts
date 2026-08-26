@@ -587,6 +587,11 @@ export default class Device extends RACDevice {
         }
 
         this.raw_clip_state[id] = value
+        const selectedCount = standbyTypeFields.filter((field) => this.raw_clip_state[field] !== 0).length
+        // The ThinQ app disables auto rotation when only one standby screen is
+        // selected. Persist the same rule in the appliance; merely hiding the
+        // HA control leaves PAC rotating to an unselected, blank screen.
+        if (selectedCount <= 1) this.raw_clip_state[fields.standbyAutoSwitch] = 0
         const defaults: Record<number, number> = {
             [fields.standbyIndoorAir]: 1,
             [fields.standbyTimeFormat]: 1,

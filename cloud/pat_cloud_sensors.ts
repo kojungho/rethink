@@ -32,7 +32,7 @@ const LOCAL_COMPONENTS: Record<string, LocalComponentMap> = {
         main: {
             current_job_mode: ['climate'],
             operation_mode: ['climate'],
-            air_clean_mode: ['air_purify'],
+            air_clean_mode: ['airclean', 'air_purify'],
             current_temperature: ['climate'],
             target_temperature: ['climate'],
             pm1: ['pm1'],
@@ -49,7 +49,7 @@ const LOCAL_COMPONENTS: Record<string, LocalComponentMap> = {
             wind_up_down: ['climate'],
             wind_left_right: ['climate'],
             display_light: ['display_light'],
-            sleep_stop_timer: ['sleep_timer'],
+            sleep_stop_timer: ['sleeptimer', 'sleep_timer'],
             error: ['error', 'error_code'],
         },
     },

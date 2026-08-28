@@ -83,7 +83,7 @@ describe('PAT-Cloud sensor mapping', () => {
                 sleepTimer: { relativeStopTimer: 'UNSET' },
             },
             { energyUsage: 123 },
-            new Set(['climate', 'pm1', 'air_quality', 'sleep_timer']),
+            new Set(['climate', 'pm1', 'air_quality', 'airclean', 'sleeptimer']),
         )
         const keys = groups[0].readings.map((reading) => reading.key)
 
@@ -95,6 +95,7 @@ describe('PAT-Cloud sensor mapping', () => {
         assert.equal(keys.includes('current_temperature'), false)
         assert.equal(keys.includes('pm1'), false)
         assert.equal(keys.includes('pollution_level'), false)
+        assert.equal(keys.includes('air_clean_mode'), false)
         assert.equal(keys.includes('sleep_stop_timer'), false)
     })
 

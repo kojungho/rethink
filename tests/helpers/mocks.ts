@@ -86,6 +86,7 @@ type SentMessage = { cmd: string; type: number; data: string | object }
 export class MockThinq2Device extends Thinq2Device {
     outbox: Buffer[] = []
     sent: SentMessage[] = []
+    timeSyncRequests: string[] = []
 
     constructor(id: string, meta: Metadata) {
         // The real Device only touches `broker` from inside `send`; we override `send` so the
@@ -102,9 +103,14 @@ export class MockThinq2Device extends Thinq2Device {
         this.outbox.push(buf)
     }
 
+    override requestTimeSync(reason: string) {
+        this.timeSyncRequests.push(reason)
+    }
+
     resetRecorder() {
         this.outbox = []
         this.sent = []
+        this.timeSyncRequests = []
     }
 }
 

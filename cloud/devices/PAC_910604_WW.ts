@@ -37,6 +37,7 @@ const standbyFields = [
 /** LG Korean stand air conditioner using A7 TLV notifications and A8 fixed status frames. */
 export default class Device extends RACDevice {
     private fanModeProfile: 'dry' | 'levels' = 'levels'
+    private standbyTimeSyncTimeout: ReturnType<typeof setTimeout> | undefined
 
     constructor(HA: Connection, thinq: Thinq2Device, meta: Metadata) {
         super(HA, thinq, meta)
@@ -83,6 +84,11 @@ export default class Device extends RACDevice {
 
     start() {}
     query() {}
+
+    drop() {
+        this.cancelStandbyTimeSync()
+        super.drop()
+    }
 
     protected extendConfig(config: DeviceDiscovery) {
         // PAC reports and accepts these controls directly. RAC's deferred
@@ -506,6 +512,9 @@ export default class Device extends RACDevice {
                     if (id === fields.standbyPower) {
                         this.raw_clip_state[id] = value
                         this.send([1, 1, 2, 1, 1], [{ t: id, v: value }])
+                        if (value !== 0 && this.raw_clip_state[fields.standbyClock] !== 0)
+                            this.scheduleStandbyTimeSync()
+                        else this.cancelStandbyTimeSync()
                         this.updateStandbyAvailability()
                         return false
                     }
@@ -606,8 +615,32 @@ export default class Device extends RACDevice {
             [1, 1, 2, 1, 1],
             standbyFields.map((field) => ({ t: field, v: this.raw_clip_state[field] ?? defaults[field] })),
         )
+        if (
+            this.raw_clip_state[fields.standbyPower] !== 0 &&
+            this.raw_clip_state[fields.standbyClock] !== 0 &&
+            (id === fields.standbyClock || id === fields.standbyDate || id === fields.standbyTimeFormat)
+        )
+            this.scheduleStandbyTimeSync()
+        else if (id === fields.standbyClock) this.cancelStandbyTimeSync()
         this.updateStandbyAvailability()
         return false
+    }
+
+    private scheduleStandbyTimeSync() {
+        this.cancelStandbyTimeSync()
+        // PAC does not request a fresh clock after standby-screen changes. Let
+        // the setting acknowledgement settle, then refresh the clock exactly
+        // once; repeated unsolicited responses can make this firmware blank it.
+        this.standbyTimeSyncTimeout = setTimeout(() => {
+            this.standbyTimeSyncTimeout = undefined
+            this.thinq.requestTimeSync('PAC standby clock refresh')
+        }, 750)
+    }
+
+    private cancelStandbyTimeSync() {
+        if (this.standbyTimeSyncTimeout == undefined) return
+        clearTimeout(this.standbyTimeSyncTimeout)
+        this.standbyTimeSyncTimeout = undefined
     }
 
     private updateStandbyAvailability() {

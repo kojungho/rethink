@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import DUT from '@/cloud/devices/PAC_910604_WW'
 import type { Metadata } from '@/cloud/thinq'
 import { MockHAConnection, MockThinq2Device, buf } from '@/tests/helpers/mocks'
+import { enableMockTimers, tickMockTimers } from '@/tests/helpers/timers'
 import * as TLV from '@/util/tlv'
 
 const DEVICE_ID = 'test-id'
@@ -252,6 +253,29 @@ describe('PAC_910604_WW', () => {
             0,
             'auto rotation must be disabled when only one standby screen is selected',
         )
+        dev.drop()
+    })
+
+    test('refreshes the clock once after standby-screen clock changes', (t) => {
+        enableMockTimers(t)
+        const { ha, thinq, dev } = makeDevice()
+        dev.processKeyValue(0x1b5, 1)
+        dev.processKeyValue(0x1b0, 1)
+        dev.processKeyValue(0x1a4, 1)
+        dev.processKeyValue(0x1a2, 1)
+
+        ha.setProperty(DEVICE_ID, 'standby_date', 'command', 'OFF')
+        ha.setProperty(DEVICE_ID, 'standby_date', 'command', 'ON')
+        ha.setProperty(DEVICE_ID, 'standby_screen', 'command', 'OFF')
+        ha.setProperty(DEVICE_ID, 'standby_screen', 'command', 'ON')
+        tickMockTimers(t, 749)
+        assert.deepEqual(thinq.timeSyncRequests, [])
+        tickMockTimers(t, 1)
+        assert.deepEqual(thinq.timeSyncRequests, ['PAC standby clock refresh'])
+
+        ha.setProperty(DEVICE_ID, 'standby_clock', 'command', 'OFF')
+        tickMockTimers(t, 1000)
+        assert.equal(thinq.timeSyncRequests.length, 1)
         dev.drop()
     })
 })

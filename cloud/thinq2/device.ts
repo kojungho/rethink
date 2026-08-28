@@ -29,6 +29,7 @@ export class Device extends TypedEmitter<DeviceEvents> {
         readonly topic: string,
         readonly id: string,
         readonly meta: Metadata,
+        private readonly timeSync?: (reason: string) => void,
     ) {
         super()
     }
@@ -44,6 +45,10 @@ export class Device extends TypedEmitter<DeviceEvents> {
     send_packet(buf: Buffer) {
         this.emit('sendData', buf)
         this.send('packet', 1, buf.toString('hex'))
+    }
+
+    requestTimeSync(reason: string) {
+        this.timeSync?.(reason)
     }
 
     markCurrentPacketMapped() {
@@ -180,7 +185,10 @@ export class DeviceAcceptor extends TypedEmitter<DeviceAcceptorEvents> {
             deviceType: client.deployMsg.data?.appInfo?.DeviceType,
         }
 
-        const dev = new Device(this.broker, 'lime/devices/' + deviceId, deviceId, meta)
+        let dev: Device
+        dev = new Device(this.broker, 'lime/devices/' + deviceId, deviceId, meta, (reason) => {
+            if (client.deviceObj === dev) this.timeSyncRequest(client, reason)
+        })
         client.deviceObj = dev
         this.emit('newDevice', dev)
     }

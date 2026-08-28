@@ -102,6 +102,10 @@ class Bridge {
         return undefined
     }
 
+    getDeviceComponentKeys(id: string) {
+        return new Set(Object.keys(this.haDevices.get(id)?.config?.components ?? {}))
+    }
+
     newDevice(thinqdev: AnyDevice) {
         const alias = this.aliasResolver?.(thinqdev.id)
         const meta = alias ? { ...thinqdev.meta, alias } : thinqdev.meta

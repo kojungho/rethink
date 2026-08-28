@@ -24,9 +24,12 @@
                 padding: 8px;
                 overflow-y: scroll;
                 margin-bottom: 8px;
+                height: clamp(18rem, 45vh, 32rem);
+                min-width: 0;
             }
             body {
-                height: 100vh;
+                min-height: 100vh;
+                height: auto;
             }
 
             .message {
@@ -36,6 +39,9 @@
                 padding: 2px 4px;
                 margin: 2px;
                 word-wrap: anywhere;
+                overflow-wrap: anywhere;
+                box-sizing: border-box;
+                max-width: 100%;
             }
 
             .tx.message {
@@ -113,6 +119,25 @@
                 white-space: pre-wrap;
                 word-break: break-word;
             }
+            .messages_panel {
+                flex: 0 0 auto;
+                min-height: 0;
+            }
+            @media (max-width: 600px) {
+                #messages {
+                    height: 45vh;
+                    min-height: 18rem;
+                }
+                .message {
+                    float: none !important;
+                    width: 100%;
+                }
+                .message .timestamp {
+                    float: none !important;
+                    display: inline-block;
+                    margin-left: 0;
+                }
+            }
         </style>
         <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
         <link
@@ -180,7 +205,7 @@
             </div>
         </div>
 
-        <div class="reduced_margins container flex_y flex_grow" style="overflow: hidden">
+        <div class="reduced_margins container flex_y messages_panel">
             <h4 class="header orange-text">
                 Messages
                 <div style="float: right">

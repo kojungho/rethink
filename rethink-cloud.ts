@@ -149,9 +149,9 @@ const haConnection = new HA_connection(config.homeassistant)
 const ha = new HA_bridge(haConnection)
 const manager = new DeviceManager()
 const thinqHistory = config.thinq_connect
-    ? new ThinQConnectHistory(haConnection, config.thinq_connect).setLocalDeviceResolver((model) =>
-          ha.findDeviceIdByModel(model),
-      )
+    ? new ThinQConnectHistory(haConnection, config.thinq_connect)
+          .setLocalDeviceResolver((model) => ha.findDeviceIdByModel(model))
+          .setLocalComponentsResolver((id) => ha.getDeviceComponentKeys(id))
     : undefined
 manager.on('newDevice', (dev) => {
     ha.newDevice(dev)

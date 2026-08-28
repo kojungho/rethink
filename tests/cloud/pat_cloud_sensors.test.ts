@@ -70,4 +70,48 @@ describe('PAT-Cloud sensor mapping', () => {
             false,
         )
     })
+
+    test('keeps cloud-only readings and removes only values backed by local components', () => {
+        const groups = patCloudGroups(
+            'DEVICE_AIR_CONDITIONER',
+            {
+                runState: { currentState: 'NORMAL' },
+                airConJobMode: { currentJobMode: 'COOL' },
+                temperature: { currentTemperature: 25 },
+                airQualitySensor: { PM1: 4, totalPollution: 1, totalPollutionLevel: 'GOOD' },
+                timer: { absoluteStartTimer: 'UNSET' },
+                sleepTimer: { relativeStopTimer: 'UNSET' },
+            },
+            { energyUsage: 123 },
+            new Set(['climate', 'pm1', 'air_quality', 'sleep_timer']),
+        )
+        const keys = groups[0].readings.map((reading) => reading.key)
+
+        assert.equal(keys.includes('current_state'), true)
+        assert.equal(keys.includes('pollution'), true)
+        assert.equal(keys.includes('absolute_start_timer'), true)
+        assert.equal(keys.includes('daily_energy_usage'), true)
+        assert.equal(keys.includes('current_job_mode'), false)
+        assert.equal(keys.includes('current_temperature'), false)
+        assert.equal(keys.includes('pm1'), false)
+        assert.equal(keys.includes('pollution_level'), false)
+        assert.equal(keys.includes('sleep_stop_timer'), false)
+    })
+
+    test('removes both cloud battery readings when the local cleaner battery exists', () => {
+        const groups = patCloudGroups(
+            'DEVICE_STICK_CLEANER',
+            {
+                runState: { currentState: 'CHARGING', currentStateDetail: 'STANDBY' },
+                battery: { level: 'HIGH', percent: 80 },
+            },
+            {},
+            new Set(['battery']),
+        )
+        const keys = groups[0].readings.map((reading) => reading.key)
+
+        assert.equal(keys.includes('current_state_detail'), true)
+        assert.equal(keys.includes('battery_level'), false)
+        assert.equal(keys.includes('battery_percent'), false)
+    })
 })

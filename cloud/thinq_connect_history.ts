@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import type { ThinQConnectConfig } from '@/util/config'
-import type { Connection } from './homeassistant'
+import type { Connection, DeviceDiscovery } from './homeassistant'
 import log from '@/util/logging'
 import { patCloudDiscovery, patCloudGroups, publishPatCloudGroup } from './pat_cloud_sensors'
 
@@ -59,6 +59,7 @@ export class ThinQConnectHistory extends EventEmitter {
     private refreshTimer?: NodeJS.Timeout
     private pollPromise?: Promise<void>
     private resolveLocalDeviceId: (model: string) => string | undefined = () => undefined
+    private resolveLocalComponents: (localDeviceId: string) => ReadonlySet<string> = () => new Set()
     private readonly snapshots = new Map<string, ThinQConnectSnapshot>()
     private readonly trackedLocalDeviceIds = new Set<string>()
 
@@ -79,6 +80,11 @@ export class ThinQConnectHistory extends EventEmitter {
 
     setLocalDeviceResolver(resolver: (model: string) => string | undefined) {
         this.resolveLocalDeviceId = resolver
+        return this
+    }
+
+    setLocalComponentsResolver(resolver: (localDeviceId: string) => ReadonlySet<string>) {
+        this.resolveLocalComponents = resolver
         return this
     }
 
@@ -196,14 +202,30 @@ export class ThinQConnectHistory extends EventEmitter {
         this.snapshots.set(localDeviceId, snapshot)
         this.emit('snapshot', localDeviceId, snapshot)
 
-        const groups = patCloudGroups(snapshot.deviceType, snapshot.state, snapshot.dailyEnergy)
-        for (const group of groups) {
-            const suffix = group.unit === 'main' ? '' : `-${group.unit}`
-            this.HA.publishConfig(
-                localDeviceId,
-                patCloudDiscovery(snapshot.alias, snapshot.model, group),
-                `${localDeviceId}-pat-cloud${suffix}`,
-            )
+        const allGroups = patCloudGroups(snapshot.deviceType, snapshot.state, snapshot.dailyEnergy)
+        const localComponents = this.resolveLocalComponents(localDeviceId)
+        const groups = patCloudGroups(snapshot.deviceType, snapshot.state, snapshot.dailyEnergy, localComponents)
+        const groupsByUnit = new Map(groups.map((group) => [group.unit, group]))
+        for (const allGroup of allGroups) {
+            const group = groupsByUnit.get(allGroup.unit)
+            const suffix = allGroup.unit === 'main' ? '' : `-${allGroup.unit}`
+            const discoveryId = `${localDeviceId}-pat-cloud${suffix}`
+            if (!group) {
+                this.HA.clearConfig(localDeviceId, discoveryId)
+                continue
+            }
+            const keptKeys = new Set(group.readings.map((reading) => reading.key))
+            const removedReadings = allGroup.readings.filter((reading) => !keptKeys.has(reading.key))
+            if (removedReadings.length) {
+                const cleanup = patCloudDiscovery(snapshot.alias, snapshot.model, group)
+                for (const reading of removedReadings) {
+                    cleanup.components[`pat_cloud_${reading.key}`] = {
+                        platform: 'sensor',
+                    } as DeviceDiscovery['components'][string]
+                }
+                this.HA.publishConfig(localDeviceId, cleanup, discoveryId)
+            }
+            this.HA.publishConfig(localDeviceId, patCloudDiscovery(snapshot.alias, snapshot.model, group), discoveryId)
             publishPatCloudGroup((property, value) => this.HA.publishProperty(localDeviceId, property, value), group)
         }
         this.HA.publishProperty(localDeviceId, 'pat_cloud/state_availability', stateAvailable ? 'online' : 'offline')

@@ -22,6 +22,111 @@ export type PatCloudGroup = {
 
 type SensorDefinition = Omit<PatCloudReading, 'value' | 'source'> & { path: string }
 
+type LocalComponentMap = Partial<Record<PatCloudUnit, Record<string, string[]>>>
+
+// A PAT value is hidden only when the connected local device actually
+// publishes one of the listed components. This keeps cloud-only values while
+// avoiding duplicate entities on models whose local packet mapping is complete.
+const LOCAL_COMPONENTS: Record<string, LocalComponentMap> = {
+    DEVICE_AIR_CONDITIONER: {
+        main: {
+            current_job_mode: ['climate'],
+            operation_mode: ['climate'],
+            air_clean_mode: ['air_purify'],
+            current_temperature: ['climate'],
+            target_temperature: ['climate'],
+            pm1: ['pm1'],
+            pm2_5: ['pm2_5'],
+            pm10: ['pm10'],
+            humidity: ['humidity'],
+            pollution_level: ['air_quality'],
+            monitoring: ['air_quality_sensor'],
+            filter_used_time: ['filter_used_time'],
+            filter_lifetime: ['filter_remaining_time'],
+            filter_remaining: ['filter_remaining'],
+            wind_strength: ['climate'],
+            wind_step: ['climate'],
+            wind_up_down: ['climate'],
+            wind_left_right: ['climate'],
+            display_light: ['display_light'],
+            sleep_stop_timer: ['sleep_timer'],
+            error: ['error', 'error_code'],
+        },
+    },
+    DEVICE_DISH_WASHER: {
+        main: {
+            current_state: ['state'],
+            rinse_level: ['rinse_level'],
+            softening_level: ['salt_level'],
+            machine_clean_reminder: ['clean_reminder'],
+            signal_level: ['buzzer'],
+            clean_light_reminder: ['end_alarm'],
+            door_state: ['door'],
+            operation_mode: ['operation'],
+            remote_control: ['remote_start_active', 'remote_mode'],
+            course: ['course'],
+            remaining_time: ['remaining_time'],
+            total_time: ['initial_time'],
+            delay_start: ['delay_start'],
+        },
+    },
+    DEVICE_WASHTOWER: {
+        washer: {
+            current_state: ['washer_state'],
+            operation_mode: ['washer_operation'],
+            remote_control: ['washer_remote_start'],
+            cycle_count: ['washer_cycle_count'],
+            remaining_time: ['washer_remaining_time'],
+            total_time: ['washer_initial_time'],
+            delay_start: ['washer_reserve_time'],
+            delay_end: ['washer_delay_ends_at'],
+            error: ['washer_error'],
+        },
+        dryer: {
+            current_state: ['dryer_state'],
+            operation_mode: ['dryer_operation'],
+            remote_control: ['dryer_remote_start'],
+            remaining_time: ['dryer_remaining_time'],
+            total_time: ['dryer_initial_time'],
+            delay_start: ['dryer_reserve_time'],
+            delay_end: ['dryer_delay_ends_at'],
+            error: ['dryer_error'],
+        },
+    },
+    DEVICE_STICK_CLEANER: {
+        main: {
+            current_state: ['current_state'],
+            current_job_mode: ['operation_mode'],
+            battery_level: ['battery'],
+            battery_percent: ['battery'],
+        },
+    },
+    DEVICE_REFRIGERATOR: {
+        main: {
+            rapid_freeze: ['express_freeze'],
+            express_mode: ['express_cool_status'],
+            express_fridge: ['express_cool_status'],
+            fresh_air_filter: ['pure_n_fresh'],
+            door_state: ['door'],
+            fridge_temperature: ['fridge_setpoint'],
+            freezer_temperature: ['freezer_setpoint'],
+        },
+    },
+    DEVICE_DEHUMIDIFIER: {
+        main: {
+            operation_mode: ['humidifier', 'power'],
+            current_job_mode: ['operating_mode'],
+            current_humidity: ['current_humidity'],
+            target_humidity: ['target_humidity'],
+            wind_strength: ['fan_speed'],
+            absolute_stop_timer: ['off_timer'],
+        },
+    },
+}
+
+LOCAL_COMPONENTS.DEVICE_WASHTOWER_WASHER = { washer: LOCAL_COMPONENTS.DEVICE_WASHTOWER.washer! }
+LOCAL_COMPONENTS.DEVICE_WASHTOWER_DRYER = { dryer: LOCAL_COMPONENTS.DEVICE_WASHTOWER.dryer! }
+
 const COMMON_ERROR: SensorDefinition = {
     key: 'error',
     path: 'error',
@@ -339,7 +444,7 @@ function energyReading(value: unknown): PatCloudReading[] {
     ]
 }
 
-export function patCloudGroups(
+function unfilteredPatCloudGroups(
     deviceType: string,
     state: unknown,
     dailyEnergy: Record<string, number>,
@@ -377,6 +482,31 @@ export function patCloudGroups(
         ...energyReading(dailyEnergy.energyUsage),
     ]
     return readings.length ? [{ unit: 'main', readings }] : []
+}
+
+export function patCloudGroups(
+    deviceType: string,
+    state: unknown,
+    dailyEnergy: Record<string, number>,
+    localComponents?: ReadonlySet<string>,
+): PatCloudGroup[] {
+    const groups = unfilteredPatCloudGroups(deviceType, state, dailyEnergy)
+    if (!localComponents?.size) return groups
+
+    const mappings = LOCAL_COMPONENTS[deviceType]
+    if (!mappings) return groups
+    return groups
+        .map((group) => {
+            const unitMappings = mappings[group.unit] ?? {}
+            return {
+                ...group,
+                readings: group.readings.filter((reading) => {
+                    const candidates = unitMappings[reading.key] ?? []
+                    return !candidates.some((component) => localComponents.has(component))
+                }),
+            }
+        })
+        .filter((group) => group.readings.length)
 }
 
 function topicPrefix(unit: PatCloudUnit) {

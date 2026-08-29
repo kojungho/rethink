@@ -30,6 +30,7 @@ export class Device extends TypedEmitter<DeviceEvents> {
         readonly id: string,
         readonly meta: Metadata,
         private readonly timeSync?: (reason: string) => void,
+        private readonly reconnect?: (reason: string) => void,
     ) {
         super()
     }
@@ -49,6 +50,10 @@ export class Device extends TypedEmitter<DeviceEvents> {
 
     requestTimeSync(reason: string) {
         this.timeSync?.(reason)
+    }
+
+    requestReconnect(reason: string) {
+        this.reconnect?.(reason)
     }
 
     markCurrentPacketMapped() {
@@ -186,9 +191,20 @@ export class DeviceAcceptor extends TypedEmitter<DeviceAcceptorEvents> {
         }
 
         let dev: Device
-        dev = new Device(this.broker, 'lime/devices/' + deviceId, deviceId, meta, (reason) => {
-            if (client.deviceObj === dev) this.timeSyncRequest(client, reason)
-        })
+        dev = new Device(
+            this.broker,
+            'lime/devices/' + deviceId,
+            deviceId,
+            meta,
+            (reason) => {
+                if (client.deviceObj === dev) this.timeSyncRequest(client, reason)
+            },
+            (reason) => {
+                if (client.deviceObj !== dev) return
+                log('status', deviceId, 'reconnecting device', reason)
+                client.destroy()
+            },
+        )
         client.deviceObj = dev
         this.emit('newDevice', dev)
     }

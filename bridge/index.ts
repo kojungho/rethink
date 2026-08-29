@@ -14,10 +14,16 @@ import { Connection as Thinq2Connection } from './thinq2connection'
 import { Device as T1Downstream } from '@/cloud/thinq1/device'
 import { Device as T2Downstream } from '@/cloud/thinq2/device'
 import { TypedEmitter } from 'tiny-typed-emitter'
+import log from '@/util/logging'
 
 type StatusCallback = (status: string) => void
 
 const RECONNECT_PERIOD = 5000
+export const PAC_CLOCK_REFRESH_PERIOD = 45 * 60 * 1000
+
+export function clockRefreshPeriod(modelName: string | undefined) {
+    return modelName === 'PAC_910604_WW' ? PAC_CLOCK_REFRESH_PERIOD : undefined
+}
 
 class BridgedDevice {
     // upstream - our connection to the ThinQ cloud
@@ -39,6 +45,7 @@ class BridgedDevice {
         downstream.on('close', this.onDownstreamClose)
 
         this.reconnectNow()
+        this.scheduleClockRefresh()
     }
 
     onDownstreamData: (packet: Buffer) => void
@@ -68,6 +75,26 @@ class BridgedDevice {
     }
 
     reconnectTimeout: NodeJS.Timeout | undefined
+    clockRefreshTimeout: NodeJS.Timeout | undefined
+
+    scheduleClockRefresh() {
+        clearTimeout(this.clockRefreshTimeout)
+        this.clockRefreshTimeout = undefined
+
+        const downstream = this.downstream
+        if (!(downstream instanceof T2Downstream)) return
+        const period = clockRefreshPeriod(downstream.meta.modelName || downstream.meta.modelId)
+        if (period == undefined) return
+
+        this.clockRefreshTimeout = setTimeout(() => {
+            this.clockRefreshTimeout = undefined
+            if (!this.connection) return
+
+            log('bridge', `${downstream.id} refreshing PAC connection before clock expiry`)
+            downstream.requestReconnect('PAC standby clock refresh')
+        }, period)
+        this.clockRefreshTimeout.unref()
+    }
 
     disconnect() {
         if (this.connection) {
@@ -87,6 +114,8 @@ class BridgedDevice {
         this.downstream.removeListener('close', this.onDownstreamClose)
         clearTimeout(this.reconnectTimeout)
         this.reconnectTimeout = undefined
+        clearTimeout(this.clockRefreshTimeout)
+        this.clockRefreshTimeout = undefined
     }
 }
 

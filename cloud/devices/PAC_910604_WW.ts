@@ -540,6 +540,27 @@ export default class Device extends RACDevice {
             'standby_auto_availability',
         )
 
+        config.components.standby_time_sync = {
+            platform: 'button',
+            unique_id: '$deviceid-standby_time_sync',
+            command_topic: '$this/standby_time_sync/set',
+            name: '현재 시간 강제 동기화',
+            icon: 'mdi:clock-sync-outline',
+            entity_category: 'config',
+            availability: this.modeAvailability('standby_clock_availability'),
+            availability_mode: 'all',
+        } as unknown as DeviceDiscovery['components'][string]
+        this.fields_by_ha.standby_time_sync = {
+            name: '',
+            comp: '',
+            readable: false,
+            write_xform: (value) => (value === 'PRESS' ? 1 : undefined),
+            write_callback: () => {
+                this.thinq.requestTimeSync('PAC manual clock sync button')
+                return false
+            },
+        }
+
         config.components.standby_time_format = {
             platform: 'select',
             unique_id: '$deviceid-standby_time_format',

@@ -50,6 +50,7 @@ describe('PAC_910604_WW', () => {
             'standby_outdoor_air',
             'standby_clock',
             'standby_date',
+            'standby_time_sync',
             'standby_time_format',
             'standby_auto_switch',
             'standby_switch_interval',
@@ -276,6 +277,15 @@ describe('PAC_910604_WW', () => {
         ha.setProperty(DEVICE_ID, 'standby_clock', 'command', 'OFF')
         tickMockTimers(t, 1000)
         assert.equal(thinq.timeSyncRequests.length, 1)
+        dev.drop()
+    })
+
+    test('sends one immediate time sync from the manual clock button', () => {
+        const { ha, thinq, dev } = makeDevice()
+
+        ha.setProperty(DEVICE_ID, 'standby_time_sync', 'command', 'PRESS')
+
+        assert.deepEqual(thinq.timeSyncRequests, ['PAC manual clock sync button'])
         dev.drop()
     })
 })
